@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.claude/
+flow_graph.json
+flow_analysis.json
+flow_nodes_*.json
+FLOW_ENGINE_COMPLETE.json
+FLOW_NODE_INDEX.json
+FLOW_COMPLETE_SUMMARY.json
+FINAL_SUMMARY.txt
+FLOW_ANALYSIS_README.md
+FLOW_ENGINE_USAGE.md
+FLOW_NODES_COMPLETE_LIST.txt
+IMPLEMENTATION_GUIDE.md
+README_FLOW_ANALYSIS.txt
