@@ -86,6 +86,62 @@ def load_flow():
             entry["schedules"] = d["schedules"]
         nodes[nid] = entry
 
+    # ── Blood test: inject dedicated type form + patient details ────────────
+    BLOOD_TEST_FORM = "synthetic_blood_test_form"
+    BLOOD_TEST_PATIENT = "synthetic_blood_test_patient"
+    # Original confirmation chain after the Nurse form createTicket
+    blood_confirmation_next = adj.get("customFormNode-1764442624724", [])
+
+    nodes[BLOOD_TEST_FORM] = {
+        "type": "customFormNode",
+        "label": "Blood Test Request",
+        "message": "Please tell us about the blood test you need.",
+        "options": [],
+        "next": [{"target": BLOOD_TEST_PATIENT, "handle": ""}],
+        "fields": [
+            {"id": "blood_test_type", "label": "Type of Blood Test (select all that apply)", "type": "multi_select", "required": True,
+             "options": ["Full Blood Count (FBC)", "HbA1c (Diabetes)", "Cholesterol / Lipid Panel",
+                         "Thyroid Function (TFT)", "Liver Function (LFT)", "Kidney Function (U&E)",
+                         "Iron Studies / Ferritin", "Vitamin B12 / Folate", "Vitamin D",
+                         "Inflammatory Markers (CRP / ESR)", "Other"]},
+            {"id": "other_blood_test", "label": "If other, please specify", "type": "short_text", "required": False},
+            {"id": "reason",          "label": "Reason for blood test", "type": "long_text",   "required": True},
+            {"id": "gp_requested",    "label": "Who requested this test?", "type": "select",   "required": True,
+             "options": ["Please select", "GP", "Other"]},
+        ],
+    }
+    adj[BLOOD_TEST_FORM] = [{"target": BLOOD_TEST_PATIENT, "handle": ""}]
+
+    nodes[BLOOD_TEST_PATIENT] = {
+        "type": "customFormNode",
+        "label": "Enter Patient Information",
+        "message": "Almost done! Please provide your details so the practice team can get back to you.",
+        "options": [],
+        "next": blood_confirmation_next,
+        "fields": [
+            {"id": "title",      "label": "Title",         "type": "select",     "required": False, "options": ["Select title", "Mr", "Mrs", "Miss", "Ms", "Dr", "Prof"]},
+            {"id": "first_name", "label": "First Name",    "type": "short_text", "required": True},
+            {"id": "last_name",  "label": "Last Name",     "type": "short_text", "required": True},
+            {"id": "nhs_number", "label": "NHS Number",    "type": "short_text", "required": True,  "placeholder": "Enter 10-digit NHS number"},
+            {"id": "phone",      "label": "Phone",         "type": "short_text", "required": False, "placeholder": "Enter phone number"},
+            {"id": "postcode",   "label": "Postcode",      "type": "short_text", "required": False, "placeholder": "Enter postcode"},
+            {"id": "dob",        "label": "Date of Birth", "type": "date",       "required": True},
+        ],
+    }
+    adj[BLOOD_TEST_PATIENT] = blood_confirmation_next
+
+    # Rewire blood test message node -> blood test form (skip the Nurse/HCA form)
+    if "messageNode-1764442597203" in nodes:
+        adj["messageNode-1764442597203"] = [{"target": BLOOD_TEST_FORM, "handle": ""}]
+        nodes["messageNode-1764442597203"]["next"] = adj["messageNode-1764442597203"]
+
+    # ── Override welcome message ─────────────────────────────────────────────
+    if "welcome_message" in nodes:
+        nodes["welcome_message"]["message"] = (
+            "Hello! Welcome to Access Care Navigation, I'm your assistant, here to help you "
+            "find the right information or service. How can I assist you today?"
+        )
+
     # ── Inject synthetic patient details form after specified forms ──────────
     # Each form gets its own synthetic node so edges don't clash.
     # ── Inject URL links for specific options ────────────────────────────────
@@ -100,6 +156,8 @@ def load_flow():
         for opt in dental_node["options"]:
             if opt["label"].strip().lower() == "dental emergency":
                 opt["url"] = "https://www.nhs.uk/nhs-services/dentists/how-to-find-an-nhs-dentist-in-an-emergency/"
+            if opt["label"].strip().lower() == "find a dentist":
+                opt["url"] = "https://www.nhs.uk/service-search/find-a-dentist/"
 
     PATIENT_DETAILS_FIELDS = [
         {"id": "title",      "label": "Title",          "type": "select",     "required": False, "options": ["Select title", "Mr", "Mrs", "Miss", "Ms", "Dr", "Prof"]},
@@ -111,13 +169,24 @@ def load_flow():
         {"id": "dob",        "label": "Date of Birth",  "type": "date",       "required": True},
     ]
 
+    # Set form title for medicine query form
+    med_form = nodes.get("customFormNode-1764448405115")
+    if med_form:
+        med_form["form_title"] = "Please complete this form"
+
+    # Replace general enquiry form fields with just the enquiry details field
+    gen_enquiry = nodes.get("general_enquiry_form")
+    if gen_enquiry:
+        gen_enquiry["fields"] = [
+            {"id": "enquiry_details", "label": "Your Enquiry Details", "type": "long_text", "required": True},
+        ]
+
     # Forms that need patient details injected, with optional extra fields
     FORMS_NEEDING_PATIENT_DETAILS = {
         "customFormNode-1764440727948": PATIENT_DETAILS_FIELDS,
         "cert_request_form":            PATIENT_DETAILS_FIELDS,
-        "general_enquiry_form":         PATIENT_DETAILS_FIELDS + [
-            {"id": "enquiry_details", "label": "Your Enquiry Details", "type": "long_text", "required": True},
-        ],
+        "general_enquiry_form":         PATIENT_DETAILS_FIELDS,
+        "customFormNode-1764448405115": PATIENT_DETAILS_FIELDS,
     }
 
     for form_id, fields in FORMS_NEEDING_PATIENT_DETAILS.items():
@@ -273,6 +342,7 @@ def build_node_response(node_id):
             "node_id": current_id,
             "type": "form",
             "message": msg,
+            "form_title": current.get("form_title", ""),
             "options": [],
             "fields": current["fields"],
             "is_end": False,

@@ -4,21 +4,29 @@ let currentNodeType = null;
 let aiHistory = [];
 let isStreaming = false;
 let isAiMode = false;
+let formHistory = [];
 
 // ===== DOM =====
-const chatMessages = document.getElementById("chatMessages");
-const chatInput    = document.getElementById("chatInput");
-const sendBtn      = document.getElementById("sendBtn");
-const buttonGrid   = document.getElementById("buttonGrid");
+const chatMessages     = document.getElementById("chatMessages");
+const chatInput        = document.getElementById("chatInput");
+const sendBtn          = document.getElementById("sendBtn");
+const buttonGrid       = document.getElementById("buttonGrid");
 const buttonPanelLabel = document.getElementById("buttonPanelLabel");
-const contextLabel = document.getElementById("contextLabel");
-const buttonPanel  = document.getElementById("buttonPanel");
-const formPanel    = document.getElementById("formPanel");
+const contextLabel     = document.getElementById("contextLabel");
+const buttonPanel      = document.getElementById("buttonPanel");
+const formPanel        = document.getElementById("formPanel");
+const landingScreen    = document.getElementById("landingScreen");
+const getStartedBtn    = document.getElementById("getStartedBtn");
 
 // ===== Init =====
 document.addEventListener("DOMContentLoaded", () => {
     setupInputHandlers();
-    startFlow();
+    // Show landing screen first; flow starts on "Get started"
+    getStartedBtn.addEventListener("click", () => {
+        landingScreen.style.display = "none";
+        chatMessages.style.display  = "";
+        startFlow();
+    });
 });
 
 function setupInputHandlers() {
@@ -80,7 +88,7 @@ function renderFlowNode(node) {
     }
 
     if (node.type === "form") {
-        showFormPanel(node.fields, node.node_id);
+        showFormPanel(node.fields, node.node_id, {}, node.form_title || "");
         setInputEnabled(false);
         return;
     }
@@ -111,21 +119,76 @@ function showOptionButtons(options) {
     buttonPanel.style.display = "";
     buttonGrid.innerHTML = "";
 
+    const ICON_MAP = {
+        "appointments":           "📅",
+        "medical certificates":   "📋",
+        "register":               "📝",
+        "medicine":               "💊",
+        "test results":           "🔬",
+        "general enquiry":        "💬",
+        "symptoms":               "🩺",
+        "check my symptoms":      "🩺",
+        "ask a question":         "❓",
+        "dental":                 "🦷",
+        "prescription":           "💉",
+        "repeat prescription":    "🔄",
+        "mental health":          "🧠",
+        "crisis":                 "🚨",
+        "register online":        "🌐",
+        "call":                   "📞",
+        "online":                 "💻",
+        "back":                   "←",
+        "nurse":                  "👩‍⚕️",
+        "follow up":              "📆",
+        "blood test":             "🩸",
+        "emergency":              "🚨",
+        "find a dentist":         "🔍",
+        "yes":                    "✅",
+        "no":                     "❌",
+        "submit":                 "📤",
+        "nhs app":                "📱",
+    };
+
+    function getIcon(label) {
+        const lower = label.toLowerCase();
+        for (const [key, icon] of Object.entries(ICON_MAP)) {
+            if (lower.includes(key)) return icon;
+        }
+        return "›";
+    }
+
+    // Only add back button if the flow doesn't already include one
+    const hasBackOption = options.some(o => o.label && o.label.toLowerCase().includes("back") && o.label.toLowerCase().includes("main"));
+
     options.forEach(opt => {
         if (!opt.label) return;
         const btn = document.createElement("button");
         btn.className = "menu-btn";
-        btn.textContent = opt.label;
+
+        const icon = document.createElement("span");
+        icon.style.cssText = "font-size:16px;flex-shrink:0;";
+        icon.textContent = getIcon(opt.label);
+
+        const text = document.createElement("span");
+        text.textContent = opt.label;
+
+        btn.appendChild(icon);
+        btn.appendChild(text);
+
         if (opt.url) {
             btn.addEventListener("click", () => window.open(opt.url, "_blank"));
+        } else if (opt.label.toLowerCase().includes("back") && opt.label.toLowerCase().includes("main")) {
+            btn.addEventListener("click", resetToMainMenu);
         } else {
             btn.addEventListener("click", () => handleOptionClick(opt.id, opt.label));
         }
         buttonGrid.appendChild(btn);
     });
 
-    // Always add back button
-    addBackButtonToGrid();
+    // Only add back button if the flow doesn't already have one
+    if (!hasBackOption) {
+        addBackButtonToGrid();
+    }
 }
 
 function addBackButtonToGrid() {
@@ -311,10 +374,53 @@ async function advanceAfterAi() {
 }
 
 // ===== Form Panel =====
-function showFormPanel(fields, nodeId) {
+function captureCurrentFormData(fields) {
+    const data = {};
+    fields.forEach(f => {
+        const el = document.getElementById("field_" + f.id);
+        if (!el) return;
+        if (f.type === "multi_select") {
+            data[f.id] = [...el.querySelectorAll("input[type=checkbox]:checked")].map(c => c.value);
+        } else if (f.type === "checkbox") {
+            data[f.id] = el.checked;
+        } else {
+            data[f.id] = el.value;
+        }
+    });
+    return data;
+}
+
+function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
     if (!formPanel) return;
+
     formPanel.innerHTML = "";
     formPanel.style.display = "";
+    document.getElementById("chatInputArea").style.display = "none";
+
+    // Form title
+    if (formTitle) {
+        const titleEl = document.createElement("h2");
+        titleEl.className = "form-panel-title";
+        titleEl.textContent = formTitle;
+        formPanel.appendChild(titleEl);
+    }
+
+    // Go Back button — shown when there's a previous form in history
+    if (formHistory.length > 0) {
+        const goBackBtn = document.createElement("button");
+        goBackBtn.type = "button";
+        goBackBtn.className = "form-go-back-btn";
+        goBackBtn.textContent = "← Go Back";
+        goBackBtn.addEventListener("click", () => {
+            // Save current form values before going back
+            const currentData = captureCurrentFormData(fields);
+            const prev = formHistory.pop();
+            // Push current form back so user can come forward again
+            formHistory.push({ fields, nodeId, savedData: currentData, formTitle });
+            showFormPanel(prev.fields, prev.nodeId, prev.savedData || {}, prev.formTitle || "");
+        });
+        formPanel.appendChild(goBackBtn);
+    }
 
     const form = document.createElement("form");
     form.id = "flowForm";
@@ -326,6 +432,65 @@ function showFormPanel(fields, nodeId) {
         const label = document.createElement("label");
         label.textContent = field.label + (field.required ? " *" : "");
         label.htmlFor = "field_" + field.id;
+
+        if (field.type === "multi_select") {
+            // Render as a collapsible dropdown with checkboxes inside
+            const wrapper = document.createElement("div");
+            wrapper.className = "multi-select-wrapper";
+            wrapper.id = "field_" + field.id;
+
+            const trigger = document.createElement("div");
+            trigger.className = "multi-select-trigger";
+            trigger.innerHTML = `<span class="multi-select-placeholder">Select all that apply</span><span class="multi-select-arrow">▾</span>`;
+
+            const dropdown = document.createElement("div");
+            dropdown.className = "multi-select-dropdown";
+            dropdown.style.display = "none";
+
+            const savedMulti = savedData[field.id] || [];
+            (field.options || []).forEach(opt => {
+                const item = document.createElement("label");
+                item.className = "multi-select-item";
+                const cb = document.createElement("input");
+                cb.type = "checkbox";
+                cb.value = opt;
+                cb.name = field.id;
+                if (savedMulti.includes(opt)) cb.checked = true;
+                cb.addEventListener("change", () => {
+                    const selected = [...dropdown.querySelectorAll("input:checked")].map(c => c.value);
+                    trigger.querySelector(".multi-select-placeholder").textContent =
+                        selected.length ? selected.join(", ") : "Select all that apply";
+                });
+                item.appendChild(cb);
+                item.appendChild(document.createTextNode(opt));
+                dropdown.appendChild(item);
+            });
+            // Restore placeholder if values were saved
+            if (savedMulti.length > 0) {
+                trigger.querySelector(".multi-select-placeholder").textContent = savedMulti.join(", ");
+            }
+
+            trigger.addEventListener("click", () => {
+                const open = dropdown.style.display !== "none";
+                dropdown.style.display = open ? "none" : "";
+                trigger.classList.toggle("open", !open);
+            });
+
+            // Close when clicking outside
+            document.addEventListener("click", (e) => {
+                if (!wrapper.contains(e.target)) {
+                    dropdown.style.display = "none";
+                    trigger.classList.remove("open");
+                }
+            });
+
+            wrapper.appendChild(trigger);
+            wrapper.appendChild(dropdown);
+            group.appendChild(label);
+            group.appendChild(wrapper);
+            form.appendChild(group);
+            return;
+        }
 
         let input;
         if (field.type === "textarea" || field.type === "long_text") {
@@ -356,6 +521,11 @@ function showFormPanel(fields, nodeId) {
         else if (field.type === "select") input.className = "form-input";
         if (field.required) input.required = true;
         if (field.placeholder) input.placeholder = field.placeholder;
+        // Restore saved value
+        if (savedData[field.id] !== undefined) {
+            if (field.type === "checkbox") input.checked = savedData[field.id];
+            else input.value = savedData[field.id];
+        }
 
         group.appendChild(label);
         group.appendChild(input);
@@ -374,8 +544,14 @@ function showFormPanel(fields, nodeId) {
         fields.forEach(f => {
             const el = document.getElementById("field_" + f.id);
             if (!el) return;
-            if (f.type === "checkbox") formData[f.id] = el.checked ? "Yes" : "No";
-            else formData[f.id] = el.value;
+            if (f.type === "multi_select") {
+                const checked = [...el.querySelectorAll("input[type=checkbox]:checked")].map(c => c.value);
+                formData[f.id] = checked.join(", ") || "None selected";
+            } else if (f.type === "checkbox") {
+                formData[f.id] = el.checked ? "Yes" : "No";
+            } else {
+                formData[f.id] = el.value;
+            }
         });
 
         // Show summary message
@@ -387,6 +563,8 @@ function showFormPanel(fields, nodeId) {
             }).join("\n");
         appendUserMessage(summary || "Form submitted");
 
+        // Save this form (with raw captured data for field restoration) to history
+        formHistory.push({ fields, nodeId, savedData: captureCurrentFormData(fields), formTitle });
         hideFormPanel();
         appendTypingIndicator();
 
@@ -414,11 +592,28 @@ function hideFormPanel() {
         formPanel.style.display = "none";
         formPanel.innerHTML = "";
     }
+    document.getElementById("chatInputArea").style.display = "";
 }
 
 // ===== Reset =====
 function resetToMainMenu() {
-    window.location.reload();
+    currentNodeId   = null;
+    currentNodeType = null;
+    isAiMode        = false;
+    aiHistory       = [];
+    isStreaming      = false;
+
+    // Clear chat and panels
+    chatMessages.innerHTML = "";
+    hideFormPanel();
+    clearButtonGrid();
+
+    // Hide landing, show chat
+    if (landingScreen) landingScreen.style.display = "none";
+    chatMessages.style.display = "";
+
+    // Restart flow from beginning
+    startFlow();
 }
 
 // ===== DOM Helpers =====
@@ -488,13 +683,56 @@ function removeTypingIndicator() {
 }
 
 function renderMarkdown(el, text) {
-    const paragraphs = text.split(/\n\n+/);
-    el.innerHTML = paragraphs.map(para => {
-        let p = para.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-        p = p.replace(/\*(.*?)\*/g, "<em>$1</em>");
-        p = p.replace(/\n/g, "<br>");
-        return `<p>${p}</p>`;
-    }).join("");
+    // Process line by line
+    const lines = text.split("\n");
+    let html = "";
+    let inList = false;
+
+    const inlineFormat = s => s
+        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*(.*?)\*/g, "<em>$1</em>")
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // Skip horizontal rules
+        if (/^---+$/.test(line.trim())) {
+            if (inList) { html += "</ul>"; inList = false; }
+            continue;
+        }
+
+        // Headings — convert to bold text instead of large headers
+        const h3 = line.match(/^###\s+(.*)/);
+        const h2 = line.match(/^##\s+(.*)/);
+        const h1 = line.match(/^#\s+(.*)/);
+        if (h1 || h2 || h3) {
+            if (inList) { html += "</ul>"; inList = false; }
+            const content = inlineFormat((h3 || h2 || h1)[1]);
+            html += `<p class="md-heading">${content}</p>`;
+            continue;
+        }
+
+        // List items
+        const listMatch = line.match(/^[-*]\s+(.*)/);
+        if (listMatch) {
+            if (!inList) { html += "<ul>"; inList = true; }
+            html += `<li>${inlineFormat(listMatch[1])}</li>`;
+            continue;
+        }
+
+        // Close list if open
+        if (inList) { html += "</ul>"; inList = false; }
+
+        // Blank line — skip
+        if (line.trim() === "") continue;
+
+        // Regular paragraph
+        html += `<p>${inlineFormat(line)}</p>`;
+    }
+
+    if (inList) html += "</ul>";
+    el.innerHTML = html;
 }
 
 function scrollToBottom() {

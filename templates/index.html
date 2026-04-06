@@ -36,11 +36,11 @@
                     </svg>
                     <span>Emergency: <strong>999</strong></span>
                 </div>
-                <div class="info-item">
+                <div class="info-item info-item-clickable" id="nonUrgentTrigger">
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                         <path d="M3 2h8a1 1 0 011 1v6a1 1 0 01-1 1H8l-2 2-2-2H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/>
                     </svg>
-                    <span>Non-urgent: <strong>NHS 111</strong></span>
+                    <span>Non-urgent: <strong>NHS 111</strong> <span class="info-hint">ⓘ</span></span>
                 </div>
             </div>
         </div>
@@ -59,10 +59,17 @@
     <!-- Main Chat Area -->
     <div class="chat-main">
 
-        <!-- Chat Messages -->
-        <div class="chat-messages" id="chatMessages">
-            <!-- Messages injected by JS -->
+        <!-- Landing Screen -->
+        <div class="landing-screen" id="landingScreen">
+            <div class="landing-logo">
+                <img src="{{ url_for('static', filename='Linein2.jpg') }}" alt="Logo" />
+            </div>
+            <h1 class="landing-heading">How can I help?</h1>
+            <button class="landing-btn" id="getStartedBtn">Get started</button>
         </div>
+
+        <!-- Chat Messages (hidden until started) -->
+        <div class="chat-messages" id="chatMessages" style="display:none;"></div>
 
         <!-- Form Panel -->
         <div class="form-panel" id="formPanel" style="display:none;"></div>
@@ -70,13 +77,11 @@
         <!-- Button Panel -->
         <div class="button-panel" id="buttonPanel" style="display:none;">
             <div class="button-panel-label" id="buttonPanelLabel">How can we help you today?</div>
-            <div class="button-grid" id="buttonGrid">
-                <!-- Buttons injected by JS -->
-            </div>
+            <div class="button-grid" id="buttonGrid"></div>
         </div>
 
         <!-- Input Area -->
-        <div class="chat-input-area">
+        <div class="chat-input-area" id="chatInputArea">
             <div class="chat-input-wrapper">
                 <textarea
                     id="chatInput"
@@ -97,8 +102,80 @@
 
     </div>
 </div>
+
+<!-- Non-Urgent Symptoms Modal -->
+<div class="modal-overlay" id="nonUrgentModal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h2>Non-Urgent Symptoms</h2>
+            <button class="modal-close" id="modalClose">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="symptom-group">
+                <h3>🧍 General / Whole Body</h3>
+                <ul>
+                    <li>Mild fatigue that's been ongoing for a few weeks</li>
+                    <li>Unexplained mild weight changes</li>
+                    <li>General feelings of being "run down"</li>
+                </ul>
+            </div>
+            <div class="symptom-group">
+                <h3>🩹 Skin</h3>
+                <ul>
+                    <li>Slow-changing moles (not bleeding or rapidly growing)</li>
+                    <li>Mild rashes, dry skin, or eczema flare-ups</li>
+                    <li>Acne or skin texture concerns</li>
+                </ul>
+            </div>
+            <div class="symptom-group">
+                <h3>🫃 Digestive</h3>
+                <ul>
+                    <li>Mild, intermittent bloating or indigestion</li>
+                    <li>Changes in bowel habits that have been gradual (not sudden or with blood)</li>
+                    <li>Mild nausea without vomiting</li>
+                </ul>
+            </div>
+            <div class="symptom-group">
+                <h3>🧠 Mental Health</h3>
+                <ul>
+                    <li>Low mood or anxiety that is manageable but affecting quality of life</li>
+                    <li>Sleep difficulties</li>
+                    <li>Stress-related concerns</li>
+                </ul>
+            </div>
+            <div class="symptom-group">
+                <h3>🦴 Musculoskeletal</h3>
+                <ul>
+                    <li>Mild joint or muscle aches not linked to injury</li>
+                    <li>Stiffness in joints over time</li>
+                    <li>Mild back pain without loss of bladder/bowel control</li>
+                </ul>
+            </div>
+            <div class="symptom-group">
+                <h3>🫁 Respiratory</h3>
+                <ul>
+                    <li>A mild cough lasting more than 3 weeks (without severe shortness of breath)</li>
+                    <li>Ongoing mild congestion or post-nasal drip</li>
+                </ul>
+            </div>
+            <div class="modal-footer-note">
+                If you are unsure whether your symptoms are urgent, please call <strong>NHS 111</strong> for guidance.
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const trigger = document.getElementById("nonUrgentTrigger");
+        const modal   = document.getElementById("nonUrgentModal");
+        const close   = document.getElementById("modalClose");
+        trigger.addEventListener("click", () => modal.classList.add("open"));
+        close.addEventListener("click",   () => modal.classList.remove("open"));
+        modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("open"); });
+    });
+</script>
 {% endblock %}
