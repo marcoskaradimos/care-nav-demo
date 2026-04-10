@@ -1,0 +1,1253 @@
+{% extends "base.html" %}
+{% block title %}Ticket #{{ selected.id }} — Access Care Navigation Agent{% endblock %}
+
+{% block head %}
+<style>
+/* ── Full-viewport inbox wrapper ── */
+.inbox-wrap {
+    display: flex;
+    height: calc(100vh - var(--nav-height));
+    overflow: hidden;
+    background: var(--bg-page);
+}
+
+/* ═══════════════════════════════════════════════
+   FAR-LEFT NAV SIDEBAR
+═══════════════════════════════════════════════ */
+.inbox-nav {
+    width: 200px;
+    min-width: 200px;
+    background: #fff;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.inbox-nav-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 16px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.inbox-nav-header span {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.inbox-nav-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 8px 0;
+}
+
+.inbox-nav-body::-webkit-scrollbar { width: 4px; }
+.inbox-nav-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: 7px;
+    transition: background 0.15s, color 0.15s;
+    margin-bottom: 1px;
+}
+
+.nav-item:hover { background: var(--bg-page); color: var(--text-primary); }
+
+.nav-item.active {
+    background: #ede9fe;
+    color: #4f46e5;
+    font-weight: 600;
+    border-left: 3px solid #4f46e5;
+    padding-left: 7px;
+}
+
+.nav-item svg { flex-shrink: 0; opacity: 0.7; }
+.nav-item.active svg { opacity: 1; }
+.nav-item-label { flex: 1; min-width: 0; }
+
+.nav-count {
+    background: #e5e7eb;
+    color: #6b7280;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 9999px;
+    padding: 1px 7px;
+    flex-shrink: 0;
+    min-width: 20px;
+    text-align: center;
+}
+
+.nav-item.active .nav-count { background: rgba(79,70,229,0.15); color: #4f46e5; }
+
+.nav-section-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 10px 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #94a3b8;
+}
+
+.inbox-nav-footer {
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+}
+
+.inbox-nav-footer a {
+    font-size: 11px;
+    color: #94a3b8;
+    text-decoration: none;
+    display: block;
+    padding: 4px 0;
+}
+
+.inbox-nav-footer a:hover { color: var(--text-secondary); }
+
+.nav-views-hint {
+    padding: 6px 10px 10px;
+    font-size: 10px;
+    color: #94a3b8;
+    line-height: 1.4;
+}
+
+/* ═══════════════════════════════════════════════
+   MIDDLE TICKET LIST PANEL
+═══════════════════════════════════════════════ */
+.ticket-list-panel {
+    width: 280px;
+    min-width: 260px;
+    background: var(--bg-white);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.ticket-list-header {
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.ticket-list-toprow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.ticket-count-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+    flex: 1;
+    white-space: nowrap;
+}
+
+.filter-select {
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-family: var(--font);
+    background: var(--bg-white);
+    color: var(--text-primary);
+    cursor: pointer;
+    outline: none;
+}
+
+.filter-select:focus { border-color: var(--primary); }
+
+.ticket-search-input {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-family: var(--font);
+    color: var(--text-primary);
+    background: var(--bg-page);
+    outline: none;
+}
+
+.ticket-search-input:focus { border-color: var(--primary); background: #fff; }
+.ticket-search-input::placeholder { color: var(--text-muted); }
+
+.ticket-list-scroll {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.ticket-list-scroll::-webkit-scrollbar { width: 4px; }
+.ticket-list-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.ticket-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 10px 12px;
+    text-decoration: none;
+    color: inherit;
+    border-left: 3px solid transparent;
+    transition: background 0.12s;
+    position: relative;
+}
+
+.ticket-item:hover { background: var(--bg-page); }
+
+.ticket-item.active {
+    background: #eff6ff;
+    border-left-color: var(--primary);
+}
+
+.ticket-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+    text-transform: uppercase;
+}
+
+.ticket-item-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.ticket-item-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 4px;
+    margin-bottom: 2px;
+}
+
+.ticket-item-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+}
+
+.ticket-item-time {
+    font-size: 10px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.ticket-item-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.ticket-item-cat {
+    font-size: 10px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    border-radius: 9999px;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.badge-open        { background: #dbeafe; color: #1d4ed8; }
+.badge-in-progress { background: #ede9fe; color: #6d28d9; }
+.badge-waiting     { background: #fef3c7; color: #92400e; }
+.badge-resolved    { background: #d1fae5; color: #065f46; }
+.badge-closed      { background: #f3f4f6; color: #6b7280; }
+.badge-low    { background: #d1fae5; color: #065f46; }
+.badge-medium { background: #fef3c7; color: #92400e; }
+.badge-high   { background: #fee2e2; color: #b91c1c; }
+.badge-urgent { background: #7f1d1d; color: #fff; }
+.badge-green  { background: #d1fae5; color: #065f46; }
+
+.unread-dot {
+    position: absolute;
+    top: 12px;
+    right: 8px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--primary);
+}
+
+/* ═══════════════════════════════════════════════
+   CENTER CONVERSATION AREA
+═══════════════════════════════════════════════ */
+.ticket-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-page);
+    min-width: 0;
+}
+
+/* Ticket top header bar */
+.ticket-topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    background: var(--bg-white);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.ticket-topbar-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+.ticket-topbar-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.ticket-topbar-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.ticket-topbar-meta {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.ticket-topbar-meta span::before {
+    content: '• ';
+    opacity: 0.5;
+}
+
+.ticket-topbar-meta span:first-child::before {
+    content: '';
+}
+
+/* Source bar */
+.ticket-source-bar {
+    padding: 7px 18px;
+    background: #f8fafc;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+/* Scrollable conversation body */
+.ticket-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px;
+}
+
+.ticket-body::-webkit-scrollbar { width: 5px; }
+.ticket-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Form responses card (internal note style) */
+.form-responses-card {
+    background: #fffbf2;
+    border: 1.5px solid #f59e0b;
+    border-radius: var(--radius-md);
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+
+.form-responses-card-header {
+    padding: 10px 16px;
+    background: #fef3c7;
+    border-bottom: 1px solid #fde68a;
+    font-size: 12px;
+    font-weight: 700;
+    color: #92400e;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.form-responses-card-body {
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.form-field-row {
+    display: flex;
+    gap: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.form-field-label {
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.form-field-value {
+    color: var(--text-secondary);
+    word-break: break-word;
+}
+
+/* Notes */
+.note-card {
+    background: var(--bg-white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    margin-bottom: 10px;
+}
+
+.note-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.note-author {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.note-time {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.note-content {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+/* Note input area */
+.note-input-area {
+    border-top: 1px solid var(--border);
+    background: var(--bg-white);
+    flex-shrink: 0;
+}
+
+.note-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    padding: 0 18px;
+}
+
+.note-tab {
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    margin-bottom: -1px;
+}
+
+.note-tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+.note-form {
+    padding: 12px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.note-textarea {
+    width: 100%;
+    min-height: 72px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-family: var(--font);
+    color: var(--text-primary);
+    resize: vertical;
+    outline: none;
+    background: var(--bg-page);
+    transition: border-color 0.15s;
+}
+
+.note-textarea:focus { border-color: var(--primary); background: #fff; }
+.note-textarea::placeholder { color: var(--text-muted); }
+
+.note-form-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.note-char-count {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.btn-add-note {
+    padding: 7px 16px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: background 0.2s, opacity 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn-add-note:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.btn-add-note:not(:disabled):hover { background: var(--primary-dark); }
+
+/* ═══════════════════════════════════════════════
+   RIGHT TICKET DETAILS SIDEBAR
+═══════════════════════════════════════════════ */
+.ticket-details-panel {
+    width: 272px;
+    min-width: 260px;
+    background: var(--bg-white);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+.ticket-details-panel::-webkit-scrollbar { width: 4px; }
+.ticket-details-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.details-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    background: var(--bg-white);
+    z-index: 2;
+}
+
+.details-panel-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.details-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 16px;
+    line-height: 1;
+    transition: background 0.15s, color 0.15s;
+}
+
+.details-close-btn:hover { background: var(--bg-page); color: var(--text-primary); }
+
+.details-ticket-id {
+    padding: 6px 14px 10px;
+    font-size: 11px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.details-section {
+    padding: 14px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.details-field {
+    margin-bottom: 12px;
+}
+
+.details-field:last-child { margin-bottom: 0; }
+
+.details-field label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+}
+
+.details-select {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-family: var(--font);
+    color: var(--text-primary);
+    background: var(--bg-white);
+    cursor: pointer;
+    outline: none;
+    appearance: auto;
+}
+
+.details-select:focus { border-color: var(--primary); }
+
+.btn-save-details {
+    width: 100%;
+    padding: 8px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-top: 10px;
+}
+
+.btn-save-details:hover { background: var(--primary-dark); }
+
+.btn-close-ticket {
+    display: block;
+    width: calc(100% - 28px);
+    margin: 14px;
+    padding: 9px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.2s;
+}
+
+.btn-close-ticket:hover { background: var(--primary-dark); }
+
+.linked-conv-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 6px 0;
+}
+
+.linked-conv-name {
+    font-size: 12px;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.recent-ticket-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border-light);
+    text-decoration: none;
+    color: inherit;
+}
+
+.recent-ticket-item:last-child { border-bottom: none; }
+
+.recent-ticket-item:hover .recent-ticket-name { color: var(--primary); }
+
+.recent-ticket-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.recent-ticket-body { flex: 1; min-width: 0; }
+
+.recent-ticket-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.recent-ticket-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 1px;
+}
+
+.details-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.no-recent {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-style: italic;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% set list_qs = 'status=' ~ filters.status ~ '&sort=' ~ filters.sort ~ ('&search=' ~ filters.search if filters.search else '') ~ ('&team=' ~ filters.team if filters.team else '') %}
+<div class="inbox-wrap">
+
+    <!-- ══ Far-left nav sidebar ══ -->
+    <nav class="inbox-nav">
+        <div class="inbox-nav-header">
+            <span>Inbox</span>
+        </div>
+        <div class="inbox-nav-body" id="inboxNavBody">
+            <div data-section-group="your_inbox">
+                <a href="{{ url_for('inbox') }}" class="nav-item">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M2 7h3l1.5 2h3L11 7h3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+                    <span class="nav-item-label">Your Inbox</span>
+                    {% if nav_counts.your_inbox %}<span class="nav-count">{{ nav_counts.your_inbox }}</span>{% endif %}
+                </a>
+            </div>
+            <div data-section-group="all">
+                <a href="{{ url_for('inbox') }}?status=All" class="nav-item">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>
+                    <span class="nav-item-label">All</span>
+                    {% if nav_counts.all %}<span class="nav-count">{{ nav_counts.all }}</span>{% endif %}
+                </a>
+            </div>
+            <div data-section-group="unassigned">
+                <a href="{{ url_for('inbox') }}?team=unassigned" class="nav-item {% if filters.team == 'unassigned' %}active{% endif %}">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2 13c0-3 2.5-4.5 6-4.5s6 1.5 6 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                    <span class="nav-item-label">Unassigned</span>
+                    {% if nav_counts.unassigned %}<span class="nav-count">{{ nav_counts.unassigned }}</span>{% endif %}
+                </a>
+            </div>
+            <div data-section-group="dashboard">
+                <a href="{{ url_for('dashboard') }}" class="nav-item">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="8" width="3" height="6" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="6.5" y="5" width="3" height="9" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="2" width="3" height="12" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>
+                    <span class="nav-item-label">Dashboard</span>
+                </a>
+            </div>
+            <div data-section-group="teams">
+                <div class="nav-section-label">
+                    Teams
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="cursor:pointer;opacity:0.5;"><circle cx="8" cy="3" r="1.2" fill="currentColor"/><circle cx="8" cy="8" r="1.2" fill="currentColor"/><circle cx="8" cy="13" r="1.2" fill="currentColor"/></svg>
+                </div>
+                {% for team in teams %}
+                <a href="{{ url_for('inbox') }}?team={{ team | urlencode }}" class="nav-item {% if filters.team == team %}active{% endif %}">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="5" r="2.5" stroke="currentColor" stroke-width="1.3"/><circle cx="10.5" cy="5" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M1 13c0-2.5 2-3.5 4.5-3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M15 13c0-2.5-2-3.5-4.5-3.5s-4.5 1-4.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                    <span class="nav-item-label" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ team }}</span>
+                    {% set tc = nav_counts.teams.get(team, 0) %}
+                    {% if tc %}<span class="nav-count">{{ tc }}</span>{% endif %}
+                </a>
+                {% endfor %}
+            </div>
+            <div data-section-group="teammates">
+                <div class="nav-section-label">Teammates</div>
+                <a href="{{ url_for('inbox') }}" class="nav-item">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2 13c0-3 2.5-4.5 6-4.5s6 1.5 6 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                    <span class="nav-item-label">Staff</span>
+                </a>
+            </div>
+            <div data-section-group="views">
+                <div class="nav-section-label">Views</div>
+                <div class="nav-views-hint">Create custom views to save filter combinations</div>
+            </div>
+        </div>
+        <div class="inbox-nav-footer">
+            <a href="{{ url_for('index') }}" style="display:flex;align-items:center;gap:6px;">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Main Page
+            </a>
+            <a href="#" data-open-inbox-settings>Inbox Settings</a>
+        </div>
+    </nav>
+
+    <!-- ══ Middle ticket list panel ══ -->
+    <section class="ticket-list-panel">
+        <div class="ticket-list-header">
+            <form method="GET" action="{{ url_for('inbox') }}" id="filter-form">
+                <div class="ticket-list-toprow">
+                    <span class="ticket-count-label">{{ tickets | length }} ticket{{ 's' if tickets | length != 1 }}</span>
+                    <select name="status" class="filter-select" onchange="document.getElementById('filter-form').submit()">
+                        <option value="Open"        {% if filters.status == 'Open'        %}selected{% endif %}>Open</option>
+                        <option value="In Progress" {% if filters.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                        <option value="Waiting"     {% if filters.status == 'Waiting'     %}selected{% endif %}>Waiting</option>
+                        <option value="Resolved"    {% if filters.status == 'Resolved'    %}selected{% endif %}>Resolved</option>
+                        <option value="Closed"      {% if filters.status == 'Closed'      %}selected{% endif %}>Closed</option>
+                        <option value="All"         {% if filters.status == 'All'         %}selected{% endif %}>All</option>
+                    </select>
+                    <select name="sort" class="filter-select" onchange="document.getElementById('filter-form').submit()">
+                        <option value="newest" {% if filters.sort == 'newest' %}selected{% endif %}>Newest</option>
+                        <option value="oldest" {% if filters.sort == 'oldest' %}selected{% endif %}>Oldest</option>
+                    </select>
+                    {% if filters.team %}
+                    <input type="hidden" name="team" value="{{ filters.team }}">
+                    {% endif %}
+                </div>
+                <input
+                    type="search"
+                    name="search"
+                    class="ticket-search-input"
+                    placeholder="Search by name or ticket ID..."
+                    value="{{ filters.search }}"
+                    oninput="debounceSearch(this.form)"
+                />
+            </form>
+        </div>
+
+        <div class="ticket-list-scroll">
+            {% if tickets %}
+                {% for t in tickets %}
+                {% set initials = ((t.patient_name or '?').split()[0][0] | upper) + (((t.patient_name or '?').split()[-1][0] | upper) if (t.patient_name or '?').split()|length > 1 else '') %}
+                {% set priority_colors = {'Low': '#10b981', 'Medium': '#94a3b8', 'High': '#f97316', 'Urgent': '#dc2626'} %}
+                {% set border_color = priority_colors.get(t.priority or 'Medium', '#94a3b8') %}
+                <a href="{{ url_for('ticket_detail', ticket_id=t.id) }}?{{ list_qs }}"
+                   class="ticket-item{% if t.id == selected.id %} active{% endif %}" style="border-left-color: {{ border_color }};">
+                    <div class="ticket-avatar" style="background-color: {{ t.avatar_color }};"> {{ initials }}</div>
+                    <div class="ticket-item-body">
+                        <div class="ticket-item-top">
+                            <span class="ticket-item-name">{{ t.display_name }}</span>
+                            <span class="ticket-item-time">{{ t.time_ago }}</span>
+                        </div>
+                        <div class="ticket-item-meta">
+                            <span class="ticket-item-cat">{{ t.category or '—' }}</span>
+                            <span class="badge badge-{{ (t.priority or 'medium') | lower }}">{{ t.priority or 'Medium' }}</span>
+                        </div>
+                    </div>
+                    {% if not t.is_read %}<span class="unread-dot"></span>{% endif %}
+                </a>
+                {% endfor %}
+            {% else %}
+                <div style="padding:40px 16px;text-align:center;color:var(--text-secondary);font-size:12px;">No tickets found.</div>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- ══ Center conversation area ══ -->
+    <main class="ticket-center">
+        {% if selected %}
+
+        {% set s_initials = ((selected.patient_name or '?').split()[0][0] | upper) + (((selected.patient_name or '?').split()[-1][0] | upper) if (selected.patient_name or '?').split()|length > 1 else '') %}
+
+        <!-- Top header bar -->
+        <div class="ticket-topbar">
+            <div class="ticket-topbar-avatar" style="background-color: {{ selected.avatar_color }};">{{ s_initials }}</div>
+            <div class="ticket-topbar-info">
+                <div class="ticket-topbar-name">{{ selected.display_name }}</div>
+                <div class="ticket-topbar-meta">
+                    {% if selected.dob %}<span>DOB: {{ selected.dob }}</span>{% endif %}
+                    {% if selected.nhs_number %}<span>NHS: {{ selected.nhs_number }}</span>{% endif %}
+                    {% if selected.phone %}<span>{{ selected.phone }}</span>{% endif %}
+                </div>
+            </div>
+            <span class="badge badge-{{ (selected.status or 'open') | lower | replace(' ', '-') }}">{{ selected.status }}</span>
+            <span class="badge badge-{{ (selected.priority or 'medium') | lower }}">{{ selected.priority }}</span>
+        </div>
+
+        <!-- Source bar -->
+        <div class="ticket-source-bar">
+            Source: Chatbot
+            {% if selected.category %} &bull; Category: <strong>{{ selected.category }}</strong>{% endif %}
+            {% if selected.assigned_to %} &bull; Assignment: <strong>{{ selected.assigned_to }}</strong>{% endif %}
+        </div>
+
+        <!-- Scrollable body -->
+        <div class="ticket-body">
+
+            <!-- Form Responses card -->
+            {% if selected.form_fields %}
+            <div class="form-responses-card">
+                <div class="form-responses-card-header">
+                    &#128203; Form responses:
+                </div>
+                <div class="form-responses-card-body">
+                    {% for key, val in selected.form_fields.items() %}
+                    <div class="form-field-row">
+                        <span class="form-field-label">{{ key | replace('_', ' ') | title }}:</span>
+                        <span class="form-field-value">
+                            {% if val is iterable and val is not string %}
+                                {{ val | join(', ') }}
+                            {% else %}
+                                {{ val or '—' }}
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Notes -->
+            {% if notes %}
+                {% for note in notes %}
+                <div class="note-card">
+                    <div class="note-card-header">
+                        <span class="note-author">{{ note.author }}</span>
+                        <span class="note-time">{{ note.created_at[:16].replace('T', ' ') if note.created_at else '' }} UTC</span>
+                    </div>
+                    <div class="note-content">{{ note.content }}</div>
+                </div>
+                {% endfor %}
+            {% endif %}
+
+        </div><!-- /ticket-body -->
+
+        <!-- Note input -->
+        <div class="note-input-area">
+            <div class="note-tabs">
+                <div class="note-tab active">Internal Note</div>
+            </div>
+            <form class="note-form" method="POST" action="{{ url_for('ticket_note', ticket_id=selected.id) }}" id="note-form">
+                <input type="hidden" name="list_status" value="{{ filters.status }}">
+                <input type="hidden" name="list_sort"   value="{{ filters.sort }}">
+                <input type="hidden" name="list_search" value="{{ filters.search }}">
+                <input type="hidden" name="list_team"   value="{{ filters.team }}">
+                <textarea
+                    class="note-textarea"
+                    name="content"
+                    id="note-content"
+                    placeholder="Add an internal note..."
+                    maxlength="2000"
+                    oninput="updateNoteUI(this)"
+                ></textarea>
+                <div class="note-form-bottom">
+                    <span class="note-char-count" id="note-char-count">0 / 2000</span>
+                    <button type="submit" class="btn-add-note" id="btn-add-note" disabled>
+                        Add Note &#8594;
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        {% endif %}
+    </main>
+
+    <!-- ══ Right ticket details sidebar ══ -->
+    {% if selected %}
+    <aside class="ticket-details-panel">
+        <div class="details-panel-header">
+            <span class="details-panel-title">Ticket Details</span>
+            <a href="{{ url_for('inbox') }}?{{ list_qs }}" class="details-close-btn" title="Back to inbox">&times;</a>
+        </div>
+        <div class="details-ticket-id">Ticket #{{ selected.id }}</div>
+
+        <!-- Status / Priority / Assign form -->
+        <div class="details-section">
+            <form method="POST" action="{{ url_for('ticket_update', ticket_id=selected.id) }}" id="details-form">
+                <input type="hidden" name="list_status" value="{{ filters.status }}">
+                <input type="hidden" name="list_sort"   value="{{ filters.sort }}">
+                <input type="hidden" name="list_search" value="{{ filters.search }}">
+                <input type="hidden" name="list_team"   value="{{ filters.team }}">
+
+                <div class="details-field">
+                    <label>Status</label>
+                    <select name="status" class="details-select" onchange="document.getElementById('details-form').submit()">
+                        <option value="Open"        {% if selected.status == 'Open'        %}selected{% endif %}>Open</option>
+                        <option value="In Progress" {% if selected.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                        <option value="Waiting"     {% if selected.status == 'Waiting'     %}selected{% endif %}>Waiting</option>
+                        <option value="Resolved"    {% if selected.status == 'Resolved'    %}selected{% endif %}>Resolved</option>
+                        <option value="Closed"      {% if selected.status == 'Closed'      %}selected{% endif %}>Closed</option>
+                    </select>
+                </div>
+
+                <div class="details-field">
+                    <label>Priority</label>
+                    <select name="priority" class="details-select" onchange="document.getElementById('details-form').submit()">
+                        <option value="Low"    {% if selected.priority == 'Low'    %}selected{% endif %}>&#x25CF; Low</option>
+                        <option value="Medium" {% if selected.priority == 'Medium' %}selected{% endif %}>&#x25CF; Medium</option>
+                        <option value="High"   {% if selected.priority == 'High'   %}selected{% endif %}>&#x25CF; High</option>
+                        <option value="Urgent" {% if selected.priority == 'Urgent' %}selected{% endif %}>&#x25CF; Urgent</option>
+                    </select>
+                </div>
+
+                <div class="details-field">
+                    <label>Assign to</label>
+                    <select name="assigned_to" class="details-select" onchange="document.getElementById('details-form').submit()">
+                        <option value="">Unassigned</option>
+                        {% for team in teams %}
+                        <option value="{{ team }}" {% if selected.assigned_to == team %}selected{% endif %}>{{ team }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </div>
+
+        <!-- Close ticket button -->
+        <form method="POST" action="{{ url_for('ticket_close', ticket_id=selected.id) }}">
+            <button type="submit" class="btn-close-ticket"
+                {% if selected.status == 'Closed' %}disabled style="opacity:0.5;cursor:not-allowed;"{% endif %}>
+                {% if selected.status == 'Closed' %}Ticket Closed{% else %}Close Ticket{% endif %}
+            </button>
+        </form>
+
+        <!-- Linked Conversation -->
+        <div class="details-section">
+            <div class="details-section-label">Linked Conversation</div>
+            <div class="linked-conv-item">
+                <span class="linked-conv-name">{{ selected.category or 'Chatbot Submission' }}</span>
+                <span class="badge badge-green">Completed</span>
+            </div>
+        </div>
+
+        <!-- Recent Tickets -->
+        <div class="details-section">
+            <div class="details-section-label">Recent Tickets</div>
+            {% if recent_tickets %}
+                {% for rt in recent_tickets %}
+                <a href="{{ url_for('ticket_detail', ticket_id=rt.id) }}?{{ list_qs }}" class="recent-ticket-item">
+                    <div class="recent-ticket-dot" style="background-color: {{ rt.status == 'Open' and '#3b82f6' or '#9ca3af' }};"></div>
+                    <div class="recent-ticket-body">
+                        <div class="recent-ticket-name">{{ rt.category or 'General' }} &mdash; #{{ rt.id }}</div>
+                        <div class="recent-ticket-meta">{{ rt.time_ago }}</div>
+                    </div>
+                    <span class="badge badge-{{ (rt.status or 'open') | lower | replace(' ', '-') }}" style="font-size:9px;">{{ rt.status }}</span>
+                </a>
+                {% endfor %}
+            {% else %}
+                <div class="no-recent">No other tickets from this patient.</div>
+            {% endif %}
+        </div>
+
+    </aside>
+    {% endif %}
+
+</div>
+
+<!-- ══ Inbox Settings Modal ══ -->
+<div id="inboxSettingsOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;width:480px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.2);overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;">
+            <h2 style="font-size:17px;font-weight:700;color:#111;">Inbox Settings</h2>
+            <button onclick="closeInboxSettings()" style="background:none;border:none;cursor:pointer;font-size:20px;color:#6b7280;line-height:1;">×</button>
+        </div>
+        <p style="padding:0 24px 14px;font-size:13px;color:#6b7280;margin:0;">Choose which sections to display and drag to reorder them</p>
+        <div id="settingsList" style="padding:0 16px 8px;"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-top:1px solid #e5e7eb;margin-top:8px;">
+            <button onclick="resetInboxSettings()" style="background:none;border:none;cursor:pointer;font-size:13px;font-weight:600;color:#374151;">Reset to Default</button>
+            <div style="display:flex;gap:10px;">
+                <button onclick="closeInboxSettings()" style="padding:9px 18px;border:1px solid #d1d5db;border-radius:8px;background:#fff;font-size:13px;font-weight:600;color:#374151;cursor:pointer;">Cancel</button>
+                <button onclick="saveInboxSettings()" style="padding:9px 20px;border:none;border-radius:8px;background:#312e81;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let searchTimer;
+function debounceSearch(form) {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => form.submit(), 350);
+}
+
+function updateNoteUI(textarea) {
+    const len = textarea.value.trim().length;
+    const countEl = document.getElementById('note-char-count');
+    const btnEl = document.getElementById('btn-add-note');
+    if (countEl) countEl.textContent = textarea.value.length + ' / 2000';
+    if (btnEl) btnEl.disabled = len === 0;
+}
+
+// ── Inbox Settings ──
+const SETTINGS_SECTIONS = [
+    { key: 'your_inbox',  label: 'Your Inbox' },
+    { key: 'all',         label: 'All' },
+    { key: 'unassigned',  label: 'Unassigned' },
+    { key: 'dashboard',   label: 'Dashboard' },
+    { key: 'teams',       label: 'Teams' },
+    { key: 'teammates',   label: 'Teammates' },
+    { key: 'views',       label: 'Views' },
+];
+const DEFAULT_ORDER = SETTINGS_SECTIONS.map(s => s.key);
+
+function getInboxSettings() {
+    try { return JSON.parse(localStorage.getItem('inboxSettings') || 'null'); } catch { return null; }
+}
+function getEffectiveSettings() {
+    const s = getInboxSettings() || {};
+    const order = (s.order && s.order.length === DEFAULT_ORDER.length) ? s.order : [...DEFAULT_ORDER];
+    return { order, visibility: s.visibility || {} };
+}
+
+function applyInboxSettings() {
+    const { order, visibility } = getEffectiveSettings();
+    const navBody = document.getElementById('inboxNavBody');
+    if (!navBody) return;
+    order.forEach(key => {
+        const g = navBody.querySelector('[data-section-group="' + key + '"]');
+        if (g) navBody.appendChild(g);
+    });
+    SETTINGS_SECTIONS.forEach(s => {
+        const g = navBody.querySelector('[data-section-group="' + s.key + '"]');
+        if (g) g.style.display = visibility[s.key] === false ? 'none' : '';
+    });
+}
+
+function openInboxSettings() {
+    document.getElementById('inboxSettingsOverlay').style.display = 'flex';
+    renderSettingsList();
+}
+function closeInboxSettings() {
+    document.getElementById('inboxSettingsOverlay').style.display = 'none';
+}
+
+let dragSrc = null;
+function renderSettingsList() {
+    const { order, visibility } = getEffectiveSettings();
+    const list = document.getElementById('settingsList');
+    list.innerHTML = '';
+    order.forEach(key => {
+        const s = SETTINGS_SECTIONS.find(x => x.key === key);
+        if (!s) return;
+        const enabled = visibility[s.key] !== false;
+        const row = document.createElement('div');
+        row.dataset.key = key;
+        row.draggable = true;
+        row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 8px;border-bottom:1px solid #f3f4f6;transition:border-top 0.1s;';
+        row.innerHTML = `
+            <div style="display:flex;align-items:center;gap:12px;">
+                <span style="color:#9ca3af;cursor:grab;font-size:18px;line-height:1;user-select:none;letter-spacing:-2px;">⠿</span>
+                <span style="font-size:14px;font-weight:500;color:#111;">${s.label}</span>
+            </div>
+            <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer;">
+                <input type="checkbox" data-key="${s.key}" ${enabled ? 'checked' : ''} style="opacity:0;width:0;height:0;position:absolute;">
+                <span class="tog-track" style="position:absolute;inset:0;background:${enabled ? '#312e81' : '#d1d5db'};border-radius:24px;transition:background 0.2s;pointer-events:none;"></span>
+                <span class="tog-thumb" style="position:absolute;top:3px;left:${enabled ? '23px' : '3px'};width:18px;height:18px;background:#fff;border-radius:50%;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);pointer-events:none;"></span>
+            </label>`;
+        const cb = row.querySelector('input');
+        const track = row.querySelector('.tog-track');
+        const thumb = row.querySelector('.tog-thumb');
+        cb.addEventListener('change', () => {
+            track.style.background = cb.checked ? '#312e81' : '#d1d5db';
+            thumb.style.left = cb.checked ? '23px' : '3px';
+        });
+        row.addEventListener('dragstart', e => {
+            dragSrc = row;
+            e.dataTransfer.effectAllowed = 'move';
+            setTimeout(() => { row.style.opacity = '0.4'; }, 0);
+        });
+        row.addEventListener('dragend', () => {
+            row.style.opacity = '';
+            list.querySelectorAll('[data-key]').forEach(r => r.style.borderTop = '');
+        });
+        row.addEventListener('dragover', e => {
+            e.preventDefault();
+            if (dragSrc && dragSrc !== row) {
+                list.querySelectorAll('[data-key]').forEach(r => r.style.borderTop = '');
+                row.style.borderTop = '2px solid #312e81';
+            }
+        });
+        row.addEventListener('dragleave', () => { row.style.borderTop = ''; });
+        row.addEventListener('drop', e => {
+            e.preventDefault();
+            row.style.borderTop = '';
+            if (!dragSrc || dragSrc === row) return;
+            const rows = [...list.children];
+            const si = rows.indexOf(dragSrc), ti = rows.indexOf(row);
+            list.insertBefore(dragSrc, si < ti ? row.nextSibling : row);
+            dragSrc = null;
+        });
+        list.appendChild(row);
+    });
+}
+
+function saveInboxSettings() {
+    const order = [...document.querySelectorAll('#settingsList [data-key]')].map(r => r.dataset.key);
+    const visibility = {};
+    document.querySelectorAll('#settingsList input[type=checkbox]').forEach(cb => {
+        visibility[cb.dataset.key] = cb.checked;
+    });
+    localStorage.setItem('inboxSettings', JSON.stringify({ order, visibility }));
+    closeInboxSettings();
+    applyInboxSettings();
+}
+function resetInboxSettings() {
+    localStorage.removeItem('inboxSettings');
+    renderSettingsList();
+    applyInboxSettings();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-open-inbox-settings]').forEach(el => {
+        el.addEventListener('click', e => { e.preventDefault(); openInboxSettings(); });
+    });
+    applyInboxSettings();
+});
+</script>
+{% endblock %}

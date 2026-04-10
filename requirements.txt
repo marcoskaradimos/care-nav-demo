@@ -1,5 +1,5 @@
 flask==3.0.3
 flask-login==0.6.3
-anthropic==0.40.0
+google-genai>=1.0.0
 python-dotenv==1.0.1
 werkzeug==3.0.3

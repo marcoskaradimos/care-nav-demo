@@ -1,0 +1,668 @@
+{% extends "base.html" %}
+{% block title %}Inbox — Access Care Navigation Agent{% endblock %}
+
+{% block head %}
+<style>
+/* ── Full-viewport inbox wrapper ── */
+.inbox-wrap {
+    display: flex;
+    height: calc(100vh - var(--nav-height));
+    overflow: hidden;
+    background: var(--bg-page);
+}
+
+/* ═══════════════════════════════════════════════
+   FAR-LEFT NAV SIDEBAR
+═══════════════════════════════════════════════ */
+.inbox-nav {
+    width: 200px;
+    min-width: 200px;
+    background: #fff;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.inbox-nav-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 16px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.inbox-nav-header span {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.inbox-nav-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 8px 0;
+}
+
+.inbox-nav-body::-webkit-scrollbar { width: 4px; }
+.inbox-nav-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: 7px;
+    transition: background 0.15s, color 0.15s;
+    margin-bottom: 1px;
+}
+
+.nav-item:hover {
+    background: var(--bg-page);
+    color: var(--text-primary);
+}
+
+.nav-item.active {
+    background: #ede9fe;
+    color: #4f46e5;
+    font-weight: 600;
+    border-left: 3px solid #4f46e5;
+    padding-left: 7px;
+}
+
+.nav-item svg { flex-shrink: 0; opacity: 0.7; }
+.nav-item.active svg { opacity: 1; }
+
+.nav-item-label { flex: 1; min-width: 0; }
+
+.nav-count {
+    background: #e5e7eb;
+    color: #6b7280;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 9999px;
+    padding: 1px 7px;
+    flex-shrink: 0;
+    min-width: 20px;
+    text-align: center;
+}
+
+.nav-item.active .nav-count {
+    background: rgba(79,70,229,0.15);
+    color: #4f46e5;
+}
+
+.nav-section-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 10px 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #94a3b8;
+}
+
+.inbox-nav-footer {
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+}
+
+.inbox-nav-footer a {
+    font-size: 11px;
+    color: #94a3b8;
+    text-decoration: none;
+    display: block;
+    padding: 4px 0;
+}
+
+.inbox-nav-footer a:hover { color: var(--text-secondary); }
+
+.nav-views-hint {
+    padding: 6px 10px 10px;
+    font-size: 10px;
+    color: #94a3b8;
+    line-height: 1.4;
+}
+
+/* ═══════════════════════════════════════════════
+   MIDDLE TICKET LIST PANEL  (~280 px)
+═══════════════════════════════════════════════ */
+.ticket-list-panel {
+    width: 280px;
+    min-width: 260px;
+    background: var(--bg-white);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.ticket-list-header {
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.ticket-list-toprow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.ticket-count-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+    flex: 1;
+    white-space: nowrap;
+}
+
+.filter-select {
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-family: var(--font);
+    background: var(--bg-white);
+    color: var(--text-primary);
+    cursor: pointer;
+    outline: none;
+}
+
+.filter-select:focus { border-color: var(--primary); }
+
+.ticket-search-input {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-family: var(--font);
+    color: var(--text-primary);
+    background: var(--bg-page);
+    outline: none;
+}
+
+.ticket-search-input:focus { border-color: var(--primary); background: #fff; }
+.ticket-search-input::placeholder { color: var(--text-muted); }
+
+.ticket-list-scroll {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.ticket-list-scroll::-webkit-scrollbar { width: 4px; }
+.ticket-list-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.ticket-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 10px 12px;
+    text-decoration: none;
+    color: inherit;
+    border-left: 3px solid transparent;
+    transition: background 0.12s;
+    position: relative;
+}
+
+.ticket-item:hover { background: var(--bg-page); }
+
+.ticket-item.active {
+    background: #eff6ff;
+    border-left-color: var(--primary);
+}
+
+.ticket-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+    text-transform: uppercase;
+}
+
+.ticket-item-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.ticket-item-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 4px;
+    margin-bottom: 2px;
+}
+
+.ticket-item-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+}
+
+.ticket-item-time {
+    font-size: 10px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.ticket-item-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.ticket-item-cat {
+    font-size: 10px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    border-radius: 9999px;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.badge-open        { background: #dbeafe; color: #1d4ed8; }
+.badge-in-progress { background: #ede9fe; color: #6d28d9; }
+.badge-waiting     { background: #fef3c7; color: #92400e; }
+.badge-resolved    { background: #d1fae5; color: #065f46; }
+.badge-closed      { background: #f3f4f6; color: #6b7280; }
+.badge-low    { background: #d1fae5; color: #065f46; }
+.badge-medium { background: #fef3c7; color: #92400e; }
+.badge-high   { background: #fee2e2; color: #b91c1c; }
+.badge-urgent { background: #7f1d1d; color: #fff; }
+.badge-green  { background: #d1fae5; color: #065f46; }
+
+.unread-dot {
+    position: absolute;
+    top: 12px;
+    right: 8px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--primary);
+    flex-shrink: 0;
+}
+
+.ticket-list-empty {
+    padding: 40px 16px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+/* ═══════════════════════════════════════════════
+   MAIN CONTENT AREA (center placeholder)
+═══════════════════════════════════════════════ */
+.inbox-main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-page);
+    overflow: hidden;
+}
+
+.inbox-placeholder {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 40px;
+}
+
+.inbox-placeholder svg {
+    color: #cbd5e1;
+    margin-bottom: 16px;
+}
+
+.inbox-placeholder h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+
+.inbox-placeholder p {
+    font-size: 13px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="inbox-wrap">
+
+    <!-- ══ Far-left nav sidebar ══ -->
+    <nav class="inbox-nav">
+        <div class="inbox-nav-header">
+            <span>Inbox</span>
+        </div>
+        <div class="inbox-nav-body" id="inboxNavBody">
+            <div data-section-group="your_inbox">
+                <a href="{{ url_for('inbox') }}" class="nav-item {% if not request.args.get('team') and request.args.get('status','Open') == 'Open' %}active{% endif %}">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M2 7h3l1.5 2h3L11 7h3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+                    <span class="nav-item-label">Your Inbox</span>
+                    {% if nav_counts.your_inbox %}<span class="nav-count">{{ nav_counts.your_inbox }}</span>{% endif %}
+                </a>
+            </div>
+            <div data-section-group="all">
+                <a href="{{ url_for('inbox') }}?status=All" class="nav-item {% if request.args.get('status') == 'All' and not request.args.get('team') %}active{% endif %}">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>
+                    <span class="nav-item-label">All</span>
+                    {% if nav_counts.all %}<span class="nav-count">{{ nav_counts.all }}</span>{% endif %}
+                </a>
+            </div>
+            <div data-section-group="unassigned">
+                <a href="{{ url_for('inbox') }}?team=unassigned" class="nav-item {% if request.args.get('team') == 'unassigned' %}active{% endif %}">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2 13c0-3 2.5-4.5 6-4.5s6 1.5 6 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                    <span class="nav-item-label">Unassigned</span>
+                    {% if nav_counts.unassigned %}<span class="nav-count">{{ nav_counts.unassigned }}</span>{% endif %}
+                </a>
+            </div>
+            <div data-section-group="dashboard">
+                <a href="{{ url_for('dashboard') }}" class="nav-item">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="8" width="3" height="6" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="6.5" y="5" width="3" height="9" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="2" width="3" height="12" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>
+                    <span class="nav-item-label">Dashboard</span>
+                </a>
+            </div>
+            <div data-section-group="teams">
+                <div class="nav-section-label">
+                    Teams
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="cursor:pointer;opacity:0.5;"><circle cx="8" cy="3" r="1.2" fill="currentColor"/><circle cx="8" cy="8" r="1.2" fill="currentColor"/><circle cx="8" cy="13" r="1.2" fill="currentColor"/></svg>
+                </div>
+                {% for team in teams %}
+                <a href="{{ url_for('inbox') }}?team={{ team | urlencode }}" class="nav-item {% if request.args.get('team') == team %}active{% endif %}">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="5" r="2.5" stroke="currentColor" stroke-width="1.3"/><circle cx="10.5" cy="5" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M1 13c0-2.5 2-3.5 4.5-3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M15 13c0-2.5-2-3.5-4.5-3.5s-4.5 1-4.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                    <span class="nav-item-label" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ team }}</span>
+                    {% set tc = nav_counts.teams.get(team, 0) %}
+                    {% if tc %}<span class="nav-count">{{ tc }}</span>{% endif %}
+                </a>
+                {% endfor %}
+            </div>
+            <div data-section-group="teammates">
+                <div class="nav-section-label">Teammates</div>
+                <a href="{{ url_for('inbox') }}" class="nav-item">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2 13c0-3 2.5-4.5 6-4.5s6 1.5 6 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                    <span class="nav-item-label">Staff</span>
+                </a>
+            </div>
+            <div data-section-group="views">
+                <div class="nav-section-label">Views</div>
+                <div class="nav-views-hint">Create custom views to save filter combinations</div>
+            </div>
+        </div>
+        <div class="inbox-nav-footer">
+            <a href="{{ url_for('index') }}" style="display:flex;align-items:center;gap:6px;">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Main Page
+            </a>
+            <a href="#" data-open-inbox-settings>Inbox Settings</a>
+        </div>
+    </nav>
+
+    <!-- ══ Middle ticket list panel ══ -->
+    <section class="ticket-list-panel">
+        <div class="ticket-list-header">
+            <form method="GET" action="{{ url_for('inbox') }}" id="filter-form">
+                <div class="ticket-list-toprow">
+                    <span class="ticket-count-label">{{ tickets | length }} ticket{{ 's' if tickets | length != 1 }}</span>
+                    <select name="status" class="filter-select" onchange="document.getElementById('filter-form').submit()">
+                        <option value="Open"        {% if filters.status == 'Open'        %}selected{% endif %}>Open</option>
+                        <option value="In Progress" {% if filters.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                        <option value="Waiting"     {% if filters.status == 'Waiting'     %}selected{% endif %}>Waiting</option>
+                        <option value="Resolved"    {% if filters.status == 'Resolved'    %}selected{% endif %}>Resolved</option>
+                        <option value="Closed"      {% if filters.status == 'Closed'      %}selected{% endif %}>Closed</option>
+                        <option value="All"         {% if filters.status == 'All'         %}selected{% endif %}>All</option>
+                    </select>
+                    <select name="sort" class="filter-select" onchange="document.getElementById('filter-form').submit()">
+                        <option value="newest" {% if filters.sort == 'newest' %}selected{% endif %}>Newest</option>
+                        <option value="oldest" {% if filters.sort == 'oldest' %}selected{% endif %}>Oldest</option>
+                    </select>
+                    {% if filters.team %}
+                    <input type="hidden" name="team" value="{{ filters.team }}">
+                    {% endif %}
+                </div>
+                <input
+                    type="search"
+                    name="search"
+                    class="ticket-search-input"
+                    placeholder="Search by name or ticket ID..."
+                    value="{{ filters.search }}"
+                    oninput="debounceSearch(this.form)"
+                />
+            </form>
+        </div>
+
+        <div class="ticket-list-scroll">
+            {% if tickets %}
+                {% for t in tickets %}
+                {% set initials = ((t.patient_name or '?').split()[0][0] | upper) + (((t.patient_name or '?').split()[-1][0] | upper) if (t.patient_name or '?').split()|length > 1 else '') %}
+                {% set priority_colors = {'Low': '#10b981', 'Medium': '#94a3b8', 'High': '#f97316', 'Urgent': '#dc2626'} %}
+                {% set border_color = priority_colors.get(t.priority or 'Medium', '#94a3b8') %}
+                <a href="{{ url_for('ticket_detail', ticket_id=t.id) }}?status={{ filters.status }}&sort={{ filters.sort }}&search={{ filters.search }}&team={{ filters.team }}"
+                   class="ticket-item" style="border-left-color: {{ border_color }};">
+                    <div class="ticket-avatar" style="background-color: {{ t.avatar_color }};">{{ initials }}</div>
+                    <div class="ticket-item-body">
+                        <div class="ticket-item-top">
+                            <span class="ticket-item-name">{{ t.display_name }}</span>
+                            <span class="ticket-item-time">{{ t.time_ago }}</span>
+                        </div>
+                        <div class="ticket-item-meta">
+                            <span class="ticket-item-cat">{{ t.category or '—' }}</span>
+                            <span class="badge badge-{{ (t.priority or 'medium') | lower }}">{{ t.priority or 'Medium' }}</span>
+                        </div>
+                    </div>
+                    {% if not t.is_read %}<span class="unread-dot"></span>{% endif %}
+                </a>
+                {% endfor %}
+            {% else %}
+                <div class="ticket-list-empty">No tickets found.</div>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- ══ Main content placeholder ══ -->
+    <main class="inbox-main">
+        <div class="inbox-placeholder">
+            <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+                <rect x="7" y="11" width="38" height="30" rx="4" stroke="currentColor" stroke-width="2"/>
+                <path d="M7 19l19 13 19-13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <h3>Select a ticket to view details</h3>
+            <p>Choose a ticket from the list on the left.</p>
+        </div>
+    </main>
+
+</div>
+
+<!-- ══ Inbox Settings Modal ══ -->
+<div id="inboxSettingsOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;width:480px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.2);overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;">
+            <h2 style="font-size:17px;font-weight:700;color:#111;">Inbox Settings</h2>
+            <button onclick="closeInboxSettings()" style="background:none;border:none;cursor:pointer;font-size:20px;color:#6b7280;line-height:1;">×</button>
+        </div>
+        <p style="padding:0 24px 14px;font-size:13px;color:#6b7280;margin:0;">Choose which sections to display and drag to reorder them</p>
+        <div id="settingsList" style="padding:0 16px 8px;">
+            <!-- items injected by JS -->
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-top:1px solid #e5e7eb;margin-top:8px;">
+            <button onclick="resetInboxSettings()" style="background:none;border:none;cursor:pointer;font-size:13px;font-weight:600;color:#374151;">Reset to Default</button>
+            <div style="display:flex;gap:10px;">
+                <button onclick="closeInboxSettings()" style="padding:9px 18px;border:1px solid #d1d5db;border-radius:8px;background:#fff;font-size:13px;font-weight:600;color:#374151;cursor:pointer;">Cancel</button>
+                <button onclick="saveInboxSettings()" style="padding:9px 20px;border:none;border-radius:8px;background:#312e81;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let searchTimer;
+function debounceSearch(form) {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => form.submit(), 350);
+}
+
+// ── Inbox Settings ──
+const SETTINGS_SECTIONS = [
+    { key: 'your_inbox',  label: 'Your Inbox' },
+    { key: 'all',         label: 'All' },
+    { key: 'unassigned',  label: 'Unassigned' },
+    { key: 'dashboard',   label: 'Dashboard' },
+    { key: 'teams',       label: 'Teams' },
+    { key: 'teammates',   label: 'Teammates' },
+    { key: 'views',       label: 'Views' },
+];
+const DEFAULT_ORDER = SETTINGS_SECTIONS.map(s => s.key);
+
+function getInboxSettings() {
+    try { return JSON.parse(localStorage.getItem('inboxSettings') || 'null'); } catch { return null; }
+}
+function getEffectiveSettings() {
+    const s = getInboxSettings() || {};
+    const order = (s.order && s.order.length === DEFAULT_ORDER.length) ? s.order : [...DEFAULT_ORDER];
+    return { order, visibility: s.visibility || {} };
+}
+
+function applyInboxSettings() {
+    const { order, visibility } = getEffectiveSettings();
+    const navBody = document.getElementById('inboxNavBody');
+    if (!navBody) return;
+    // Reorder groups
+    order.forEach(key => {
+        const g = navBody.querySelector('[data-section-group="' + key + '"]');
+        if (g) navBody.appendChild(g);
+    });
+    // Show/hide groups
+    SETTINGS_SECTIONS.forEach(s => {
+        const g = navBody.querySelector('[data-section-group="' + s.key + '"]');
+        if (g) g.style.display = visibility[s.key] === false ? 'none' : '';
+    });
+}
+
+function openInboxSettings() {
+    document.getElementById('inboxSettingsOverlay').style.display = 'flex';
+    renderSettingsList();
+}
+function closeInboxSettings() {
+    document.getElementById('inboxSettingsOverlay').style.display = 'none';
+}
+
+let dragSrc = null;
+function renderSettingsList() {
+    const { order, visibility } = getEffectiveSettings();
+    const list = document.getElementById('settingsList');
+    list.innerHTML = '';
+    order.forEach(key => {
+        const s = SETTINGS_SECTIONS.find(x => x.key === key);
+        if (!s) return;
+        const enabled = visibility[s.key] !== false;
+        const row = document.createElement('div');
+        row.dataset.key = key;
+        row.draggable = true;
+        row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 8px;border-bottom:1px solid #f3f4f6;transition:border-top 0.1s;';
+        row.innerHTML = `
+            <div style="display:flex;align-items:center;gap:12px;">
+                <span style="color:#9ca3af;cursor:grab;font-size:18px;line-height:1;user-select:none;letter-spacing:-2px;">⠿</span>
+                <span style="font-size:14px;font-weight:500;color:#111;">${s.label}</span>
+            </div>
+            <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer;">
+                <input type="checkbox" data-key="${s.key}" ${enabled ? 'checked' : ''} style="opacity:0;width:0;height:0;position:absolute;">
+                <span class="tog-track" style="position:absolute;inset:0;background:${enabled ? '#312e81' : '#d1d5db'};border-radius:24px;transition:background 0.2s;pointer-events:none;"></span>
+                <span class="tog-thumb" style="position:absolute;top:3px;left:${enabled ? '23px' : '3px'};width:18px;height:18px;background:#fff;border-radius:50%;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);pointer-events:none;"></span>
+            </label>`;
+        const cb = row.querySelector('input');
+        const track = row.querySelector('.tog-track');
+        const thumb = row.querySelector('.tog-thumb');
+        cb.addEventListener('change', () => {
+            track.style.background = cb.checked ? '#312e81' : '#d1d5db';
+            thumb.style.left = cb.checked ? '23px' : '3px';
+        });
+        // Drag-and-drop
+        row.addEventListener('dragstart', e => {
+            dragSrc = row;
+            e.dataTransfer.effectAllowed = 'move';
+            setTimeout(() => { row.style.opacity = '0.4'; }, 0);
+        });
+        row.addEventListener('dragend', () => {
+            row.style.opacity = '';
+            list.querySelectorAll('[data-key]').forEach(r => r.style.borderTop = '');
+        });
+        row.addEventListener('dragover', e => {
+            e.preventDefault();
+            if (dragSrc && dragSrc !== row) {
+                list.querySelectorAll('[data-key]').forEach(r => r.style.borderTop = '');
+                row.style.borderTop = '2px solid #312e81';
+            }
+        });
+        row.addEventListener('dragleave', () => { row.style.borderTop = ''; });
+        row.addEventListener('drop', e => {
+            e.preventDefault();
+            row.style.borderTop = '';
+            if (!dragSrc || dragSrc === row) return;
+            const rows = [...list.children];
+            const si = rows.indexOf(dragSrc), ti = rows.indexOf(row);
+            list.insertBefore(dragSrc, si < ti ? row.nextSibling : row);
+            dragSrc = null;
+        });
+        list.appendChild(row);
+    });
+}
+
+function saveInboxSettings() {
+    const order = [...document.querySelectorAll('#settingsList [data-key]')].map(r => r.dataset.key);
+    const visibility = {};
+    document.querySelectorAll('#settingsList input[type=checkbox]').forEach(cb => {
+        visibility[cb.dataset.key] = cb.checked;
+    });
+    localStorage.setItem('inboxSettings', JSON.stringify({ order, visibility }));
+    closeInboxSettings();
+    applyInboxSettings();
+}
+function resetInboxSettings() {
+    localStorage.removeItem('inboxSettings');
+    renderSettingsList();
+    applyInboxSettings();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-open-inbox-settings]').forEach(el => {
+        el.addEventListener('click', e => { e.preventDefault(); openInboxSettings(); });
+    });
+    applyInboxSettings();
+});
+</script>
+{% endblock %}

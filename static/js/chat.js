@@ -5,6 +5,7 @@ let aiHistory = [];
 let isStreaming = false;
 let isAiMode = false;
 let formHistory = [];
+let previousOptionsState = null; // { options } saved before a form is shown
 
 // ===== DOM =====
 const chatMessages     = document.getElementById("chatMessages");
@@ -25,6 +26,8 @@ document.addEventListener("DOMContentLoaded", () => {
     getStartedBtn.addEventListener("click", () => {
         landingScreen.style.display = "none";
         chatMessages.style.display  = "";
+        const sidebar = document.querySelector(".sidebar");
+        if (sidebar) sidebar.style.display = "none";
         startFlow();
     });
 });
@@ -81,32 +84,35 @@ function renderFlowNode(node) {
     clearButtonGrid();
 
     if (node.is_end) {
-        // Show only "Back to Main Menu"
         showEndButtons();
         setInputEnabled(false);
+        scrollToPanel();
         return;
     }
 
     if (node.type === "form") {
         showFormPanel(node.fields, node.node_id, {}, node.form_title || "");
         setInputEnabled(false);
+        scrollToPanel();
         return;
     }
 
     if (node.type === "options") {
+        previousOptionsState = { options: node.options };
         showOptionButtons(node.options);
         setInputEnabled(false);
         buttonPanelLabel.textContent = "Please select an option:";
+        scrollToPanel();
         return;
     }
 
     if (node.type === "ai" || node.type === "question") {
-        // Free text — user types
         buttonPanelLabel.textContent = "Type your response below:";
         showBackButton();
         setInputEnabled(true);
         chatInput.focus();
         aiHistory = [];
+        scrollToPanel();
         return;
     }
 
@@ -118,6 +124,7 @@ function renderFlowNode(node) {
 function showOptionButtons(options) {
     buttonPanel.style.display = "";
     buttonGrid.innerHTML = "";
+    scrollToPanel();
 
     const ICON_MAP = {
         "appointments":           "📅",
@@ -164,16 +171,7 @@ function showOptionButtons(options) {
         if (!opt.label) return;
         const btn = document.createElement("button");
         btn.className = "menu-btn";
-
-        const icon = document.createElement("span");
-        icon.style.cssText = "font-size:16px;flex-shrink:0;";
-        icon.textContent = getIcon(opt.label);
-
-        const text = document.createElement("span");
-        text.textContent = opt.label;
-
-        btn.appendChild(icon);
-        btn.appendChild(text);
+        btn.textContent = opt.label;
 
         if (opt.url) {
             btn.addEventListener("click", () => window.open(opt.url, "_blank"));
@@ -195,7 +193,7 @@ function addBackButtonToGrid() {
     const btn = document.createElement("button");
     btn.className = "menu-btn back-btn";
     btn.textContent = "← Back to Main Menu";
-    btn.addEventListener("click", resetToMainMenu);
+    btn.addEventListener("click", returnToLanding);
     buttonGrid.appendChild(btn);
 }
 
@@ -212,7 +210,7 @@ function showEndButtons() {
     const btn = document.createElement("button");
     btn.className = "menu-btn back-btn";
     btn.textContent = "← Back to Main Menu";
-    btn.addEventListener("click", resetToMainMenu);
+    btn.addEventListener("click", returnToLanding);
     buttonGrid.appendChild(btn);
     buttonPanelLabel.textContent = "What would you like to do next?";
 }
@@ -342,7 +340,8 @@ async function streamAiResponse(userText) {
         }
 
         // After AI response, follow flow to next node
-        advanceAfterAi();
+        await advanceAfterAi();
+        scrollToPanel();
 
     } catch (err) {
         removeTypingIndicator();
@@ -396,6 +395,7 @@ function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
     formPanel.innerHTML = "";
     formPanel.style.display = "";
     document.getElementById("chatInputArea").style.display = "none";
+    scrollToPanel();
 
     // Form title
     if (formTitle) {
@@ -405,22 +405,25 @@ function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
         formPanel.appendChild(titleEl);
     }
 
-    // Go Back button — shown when there's a previous form in history
-    if (formHistory.length > 0) {
-        const goBackBtn = document.createElement("button");
-        goBackBtn.type = "button";
-        goBackBtn.className = "form-go-back-btn";
-        goBackBtn.textContent = "← Go Back";
-        goBackBtn.addEventListener("click", () => {
-            // Save current form values before going back
+    // Go Back button — always shown on forms
+    const goBackBtn = document.createElement("button");
+    goBackBtn.type = "button";
+    goBackBtn.className = "form-go-back-btn";
+    goBackBtn.textContent = "← Go Back";
+    goBackBtn.addEventListener("click", () => {
+        if (formHistory.length > 0) {
+            // Go back to previous form
             const currentData = captureCurrentFormData(fields);
             const prev = formHistory.pop();
-            // Push current form back so user can come forward again
             formHistory.push({ fields, nodeId, savedData: currentData, formTitle });
             showFormPanel(prev.fields, prev.nodeId, prev.savedData || {}, prev.formTitle || "");
-        });
-        formPanel.appendChild(goBackBtn);
-    }
+        } else if (previousOptionsState) {
+            // No previous form — restore the options button panel
+            hideFormPanel();
+            showOptionButtons(previousOptionsState.options);
+        }
+    });
+    formPanel.appendChild(goBackBtn);
 
     const form = document.createElement("form");
     form.id = "flowForm";
@@ -521,6 +524,17 @@ function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
         else if (field.type === "select") input.className = "form-input";
         if (field.required) input.required = true;
         if (field.placeholder) input.placeholder = field.placeholder;
+        if (field.maxlength) input.maxLength = field.maxlength;
+        if (field.inputmode) input.inputMode = field.inputmode;
+        // For numeric-only fields, block non-digit keypresses
+        if (field.inputmode === "numeric") {
+            input.addEventListener("keypress", e => {
+                if (!/\d/.test(e.key)) e.preventDefault();
+            });
+            input.addEventListener("input", () => {
+                input.value = input.value.replace(/\D/g, "");
+            });
+        }
         // Restore saved value
         if (savedData[field.id] !== undefined) {
             if (field.type === "checkbox") input.checked = savedData[field.id];
@@ -540,6 +554,14 @@ function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
 
     form.addEventListener("submit", async (e) => {
         e.preventDefault();
+        // Validate NHS number exactly 10 digits
+        const nhsEl = form.querySelector("input[name=nhs_number]");
+        if (nhsEl && nhsEl.value.replace(/\D/g, "").length !== 10) {
+            nhsEl.setCustomValidity("NHS Number must be exactly 10 digits.");
+            nhsEl.reportValidity();
+            return;
+        }
+        if (nhsEl) nhsEl.setCustomValidity("");
         const formData = {};
         fields.forEach(f => {
             const el = document.getElementById("field_" + f.id);
@@ -563,6 +585,13 @@ function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
             }).join("\n");
         appendUserMessage(summary || "Form submitted");
 
+        // Build combined form data: all previous forms + current form
+        const allFormData = {};
+        formHistory.forEach(h => {
+            if (h.savedData) Object.assign(allFormData, h.savedData);
+        });
+        Object.assign(allFormData, formData);
+
         // Save this form (with raw captured data for field restoration) to history
         formHistory.push({ fields, nodeId, savedData: captureCurrentFormData(fields), formTitle });
         hideFormPanel();
@@ -572,7 +601,7 @@ function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
             const res = await fetch("/flow/step", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ node_id: nodeId, option_handle: "", form_data: formData }),
+                body: JSON.stringify({ node_id: nodeId, option_handle: "", form_data: formData, all_form_data: allFormData }),
             });
             const data = await res.json();
             removeTypingIndicator();
@@ -597,23 +626,45 @@ function hideFormPanel() {
 
 // ===== Reset =====
 function resetToMainMenu() {
-    currentNodeId   = null;
-    currentNodeType = null;
-    isAiMode        = false;
-    aiHistory       = [];
-    isStreaming      = false;
+    currentNodeId        = null;
+    currentNodeType      = null;
+    isAiMode             = false;
+    aiHistory            = [];
+    isStreaming          = false;
+    formHistory          = [];
+    previousOptionsState = null;
 
     // Clear chat and panels
     chatMessages.innerHTML = "";
     hideFormPanel();
     clearButtonGrid();
 
-    // Hide landing, show chat
+    // Hide landing, show chat and restart flow
     if (landingScreen) landingScreen.style.display = "none";
     chatMessages.style.display = "";
-
-    // Restart flow from beginning
     startFlow();
+}
+
+function returnToLanding() {
+    currentNodeId        = null;
+    currentNodeType      = null;
+    isAiMode             = false;
+    aiHistory            = [];
+    isStreaming          = false;
+    formHistory          = [];
+    previousOptionsState = null;
+
+    chatMessages.innerHTML = "";
+    hideFormPanel();
+    clearButtonGrid();
+
+    // Show landing screen, hide chat
+    if (landingScreen) landingScreen.style.display = "";
+    chatMessages.style.display = "none";
+
+    // Show sidebar again
+    const sidebar = document.querySelector(".sidebar");
+    if (sidebar) sidebar.style.display = "";
 }
 
 // ===== DOM Helpers =====
@@ -737,6 +788,13 @@ function renderMarkdown(el, text) {
 
 function scrollToBottom() {
     chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function scrollToPanel() {
+    // After panel appears, chatMessages shrinks — re-scroll to bottom so last message stays visible
+    setTimeout(() => {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }, 60);
 }
 
 function setInputEnabled(enabled) {

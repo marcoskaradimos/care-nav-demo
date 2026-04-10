@@ -647,7 +647,7 @@ html, body {
 /* ===== Button Panel ===== */
 .button-panel {
     border-top: 1px solid var(--border);
-    background: linear-gradient(to bottom, #f8faff, #f0f4ff);
+    background: var(--bg-white);
     padding: 16px 24px 20px;
 }
 
@@ -661,95 +661,63 @@ html, body {
 }
 
 .button-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 10px;
 }
 
 .menu-btn {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    background: var(--bg-white);
-    border: 1.5px solid #dbeafe;
-    border-radius: var(--radius-md);
+    gap: 6px;
+    padding: 8px 18px;
+    background: #fff;
+    border: 1.5px solid #93c5fd;
+    border-radius: 9999px;
     font-size: 13.5px;
     font-weight: 500;
     font-family: var(--font);
-    color: var(--text-primary);
+    color: #2563eb;
     cursor: pointer;
-    transition: all 0.18s ease;
-    text-align: left;
-    box-shadow: 0 1px 3px rgba(37,99,235,0.07);
-    position: relative;
-    overflow: hidden;
-}
-
-.menu-btn::before {
-    content: '';
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 3px;
-    background: var(--primary);
-    border-radius: 3px 0 0 3px;
-    opacity: 0;
-    transition: opacity 0.18s ease;
+    transition: all 0.15s ease;
+    text-align: center;
+    white-space: nowrap;
 }
 
 .menu-btn:hover {
-    background: var(--primary-light);
-    border-color: var(--primary);
-    color: var(--primary-dark);
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
-    transform: translateY(-2px);
-}
-
-.menu-btn:hover::before {
-    opacity: 1;
+    background: #eff6ff;
+    border-color: #2563eb;
+    color: #1d4ed8;
+    box-shadow: 0 2px 8px rgba(37,99,235,0.12);
 }
 
 .menu-btn:active {
-    transform: translateY(0);
-    box-shadow: 0 1px 4px rgba(37,99,235,0.1);
+    transform: scale(0.97);
 }
 
 .menu-btn.back-btn {
-    background: var(--bg-white);
-    border-color: var(--border);
+    background: #fff;
+    border-color: #d1d5db;
     color: var(--text-secondary);
     font-size: 13px;
-    grid-column: 1 / -1;
-    max-width: 200px;
-    box-shadow: none;
-}
-
-.menu-btn.back-btn::before {
-    background: var(--text-secondary);
 }
 
 .menu-btn.back-btn:hover {
     background: #f9fafb;
-    border-color: var(--text-secondary);
+    border-color: #9ca3af;
     color: var(--text-primary);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
 }
 
 .menu-btn.crisis-btn {
-    border-color: #fecaca;
+    border-color: #fca5a5;
     color: var(--danger);
-    background: #fff5f5;
-}
-
-.menu-btn.crisis-btn::before {
-    background: var(--danger);
+    background: #fff;
 }
 
 .menu-btn.crisis-btn:hover {
-    background: var(--danger-light);
+    background: #fff5f5;
     border-color: var(--danger);
     color: var(--danger);
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
 }
 
 /* ===== Chat Input Area ===== */
