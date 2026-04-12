@@ -1,4 +1,5 @@
 // ===== State =====
+let symptomDescription = "";
 let currentNodeId = null;
 let currentNodeType = null;
 let aiHistory = [];
@@ -19,15 +20,43 @@ const formPanel        = document.getElementById("formPanel");
 const landingScreen    = document.getElementById("landingScreen");
 const getStartedBtn    = document.getElementById("getStartedBtn");
 
+// ===== Patient Details =====
+let patientDetails = {};
+
+function showPatientDetailsForm() {
+    landingScreen.style.display = "none";
+    const sidebar = document.querySelector(".sidebar");
+    if (sidebar) sidebar.style.display = "none";
+
+    const detailsScreen = document.getElementById("patientDetailsScreen");
+    detailsScreen.style.display = "";
+}
+
+function submitPatientDetails(e) {
+    e.preventDefault();
+    const form = document.getElementById("patientDetailsForm");
+    const data = new FormData(form);
+    patientDetails = {
+        name: data.get("name"),
+        dob: data.get("dob"),
+        insurance_provider: data.get("insurance_provider"),
+        insurance_level: data.get("insurance_level"),
+        identifier: data.get("identifier"),
+    };
+    document.getElementById("patientDetailsScreen").style.display = "none";
+    document.getElementById("redFlagScreen").style.display = "";
+}
+
 // ===== Init =====
 document.addEventListener("DOMContentLoaded", () => {
     setupInputHandlers();
-    // Show landing screen first; flow starts on "Get started"
-    getStartedBtn.addEventListener("click", () => {
-        landingScreen.style.display = "none";
-        chatMessages.style.display  = "";
-        const sidebar = document.querySelector(".sidebar");
-        if (sidebar) sidebar.style.display = "none";
+    getStartedBtn.addEventListener("click", showPatientDetailsForm);
+    const detailsForm = document.getElementById("patientDetailsForm");
+    if (detailsForm) detailsForm.addEventListener("submit", submitPatientDetails);
+    const continueBtn = document.getElementById("redFlagContinueBtn");
+    if (continueBtn) continueBtn.addEventListener("click", () => {
+        document.getElementById("redFlagScreen").style.display = "none";
+        chatMessages.style.display = "";
         startFlow();
     });
 });
@@ -281,11 +310,11 @@ async function handleFlowTextInput(text) {
 }
 
 // ===== AI Streaming =====
-async function streamAiResponse(userText) {
+async function streamAiResponse(userText, skipUserMessage = false) {
     if (isStreaming) return;
     isStreaming = true;
 
-    appendUserMessage(userText);
+    if (!skipUserMessage) appendUserMessage(userText);
     aiHistory.push({ role: "user", content: userText });
     setInputEnabled(false);
 
@@ -389,6 +418,61 @@ function captureCurrentFormData(fields) {
     return data;
 }
 
+function showApptSymptomPanel(node) {
+    if (!formPanel) return;
+    formPanel.innerHTML = "";
+    formPanel.style.display = "";
+    document.getElementById("chatInputArea").style.display = "none";
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "appt-symptom-panel";
+
+    // Textarea
+    const fieldDiv = document.createElement("div");
+    fieldDiv.className = "pd-field";
+    const label = document.createElement("label");
+    label.textContent = "Describe your symptoms";
+    label.className = "appt-symptom-label";
+    const textarea = document.createElement("textarea");
+    textarea.className = "appt-symptom-textarea";
+    textarea.placeholder = "Please describe your symptoms or reason for appointment...";
+    textarea.rows = 4;
+    fieldDiv.appendChild(label);
+    fieldDiv.appendChild(textarea);
+    wrapper.appendChild(fieldDiv);
+
+    // Button
+    const btn = document.createElement("button");
+    btn.className = "appt-symptom-btn";
+    btn.textContent = "Submit Response";
+    btn.addEventListener("click", async () => {
+        const symptoms = textarea.value.trim();
+        if (symptoms) {
+            appendUserMessage(symptoms);
+        }
+        formPanel.style.display = "none";
+        formPanel.innerHTML = "";
+        document.getElementById("chatInputArea").style.display = "";
+        // Advance flow using the option handle
+        const optionHandle = node.options[0]?.id || "";
+        try {
+            const res = await fetch("/flow/step", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ node_id: node.node_id, option_handle: optionHandle, form_data: { symptom_description: symptoms } }),
+            });
+            const data = await res.json();
+            renderFlowNode(data);
+        } catch (err) {
+            appendAssistantMessage("Sorry, something went wrong. Please try again.");
+        }
+    });
+    wrapper.appendChild(btn);
+
+    formPanel.appendChild(wrapper);
+    scrollToPanel();
+}
+
 function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
     if (!formPanel) return;
 
@@ -435,6 +519,20 @@ function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
         const label = document.createElement("label");
         label.textContent = field.label + (field.required ? " *" : "");
         label.htmlFor = "field_" + field.id;
+
+        if (field.type === "prefilled_readonly") {
+            const ta = document.createElement("textarea");
+            ta.id = "field_" + field.id;
+            ta.name = field.id;
+            ta.className = "form-input prefilled-readonly";
+            ta.rows = 3;
+            ta.readOnly = true;
+            ta.value = symptomDescription || "(No symptoms entered)";
+            group.appendChild(label);
+            group.appendChild(ta);
+            form.appendChild(group);
+            return;
+        }
 
         if (field.type === "multi_select") {
             // Render as a collapsible dropdown with checkboxes inside
@@ -514,6 +612,70 @@ function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
         } else if (field.type === "checkbox") {
             input = document.createElement("input");
             input.type = "checkbox";
+        } else if (field.type === "pain_check") {
+            // Yes/No + pain slider
+            const painWrapper = document.createElement("div");
+            painWrapper.className = "pain-check-wrapper";
+            painWrapper.id = "field_" + field.id;
+
+            const yesNoRow = document.createElement("div");
+            yesNoRow.className = "pain-yesno-row";
+            ["Yes", "No"].forEach(val => {
+                const lbl = document.createElement("label");
+                lbl.className = "pain-yesno-label";
+                const rb = document.createElement("input");
+                rb.type = "radio";
+                rb.name = field.id + "_yesno";
+                rb.value = val;
+                rb.addEventListener("change", () => {
+                    scoreSection.style.display = val === "Yes" ? "" : "none";
+                });
+                lbl.appendChild(rb);
+                lbl.appendChild(document.createTextNode(" " + val));
+                yesNoRow.appendChild(lbl);
+            });
+
+            const scoreSection = document.createElement("div");
+            scoreSection.className = "pain-score-section";
+            scoreSection.style.display = "none";
+            const scoreLabel = document.createElement("div");
+            scoreLabel.className = "pain-score-label";
+            scoreLabel.textContent = "Pain score: 5";
+            const slider = document.createElement("input");
+            slider.type = "range";
+            slider.min = "1";
+            slider.max = "10";
+            slider.value = "5";
+            slider.className = "pain-slider";
+            slider.addEventListener("input", () => {
+                scoreLabel.textContent = "Pain score: " + slider.value;
+            });
+            const tickRow = document.createElement("div");
+            tickRow.className = "pain-tick-row";
+            for (let i = 1; i <= 10; i++) {
+                const t = document.createElement("span");
+                t.textContent = i;
+                tickRow.appendChild(t);
+            }
+            scoreSection.appendChild(scoreLabel);
+            scoreSection.appendChild(slider);
+            scoreSection.appendChild(tickRow);
+
+            painWrapper.appendChild(yesNoRow);
+            painWrapper.appendChild(scoreSection);
+
+            group.appendChild(label);
+            group.appendChild(painWrapper);
+            form.appendChild(group);
+
+            // Custom data capture for this field
+            painWrapper._getValue = () => {
+                const selected = painWrapper.querySelector(`input[name="${field.id}_yesno"]:checked`);
+                if (!selected) return "";
+                if (selected.value === "No") return "No pain";
+                return "Yes — pain score: " + slider.value + "/10";
+            };
+            return;
         } else {
             input = document.createElement("input");
             input.type = "text";
@@ -571,6 +733,8 @@ function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
                 formData[f.id] = checked.join(", ") || "None selected";
             } else if (f.type === "checkbox") {
                 formData[f.id] = el.checked ? "Yes" : "No";
+            } else if (f.type === "pain_check" || el._getValue) {
+                formData[f.id] = el._getValue ? el._getValue() : el.value;
             } else {
                 formData[f.id] = el.value;
             }
@@ -585,8 +749,16 @@ function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
             }).join("\n");
         appendUserMessage(summary || "Form submitted");
 
-        // Build combined form data: all previous forms + current form
+        // Build combined form data: patient details + all previous forms + current form
         const allFormData = {};
+        if (patientDetails) Object.assign(allFormData, {
+            patient_name: patientDetails.name || "",
+            dob: patientDetails.dob || "",
+            insurance_provider: patientDetails.insurance_provider || "",
+            insurance_level: patientDetails.insurance_level || "",
+            identifier: patientDetails.identifier || "",
+        });
+        if (symptomDescription) allFormData.symptom_description = symptomDescription;
         formHistory.forEach(h => {
             if (h.savedData) Object.assign(allFormData, h.savedData);
         });
@@ -605,7 +777,21 @@ function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
             });
             const data = await res.json();
             removeTypingIndicator();
-            renderFlowNode(data);
+            // Auto-trigger AI differential diagnosis if next node requests it
+            if (data.type === "ai" && data.auto_trigger && formData.symptom_description) {
+                symptomDescription = formData.symptom_description;
+                currentNodeId = data.node_id;
+                currentNodeType = "ai";
+                isAiMode = true;
+                if (data.message) appendAssistantMessage(data.message);
+                streamAiResponse(formData.symptom_description, true);
+            } else {
+                renderFlowNode(data);
+            }
+            // After pharmacist form, find nearby pharmacies
+            if (nodeId === "local_pharmacist_form") {
+                showNearbyPharmacies();
+            }
         } catch (err) {
             removeTypingIndicator();
             appendAssistantMessage("Your form was submitted. Thank you!");
@@ -614,6 +800,79 @@ function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
     });
 
     formPanel.appendChild(form);
+}
+
+// ===== Pharmacy Finder =====
+async function showNearbyPharmacies() {
+    appendTypingIndicator();
+    try {
+        const pos = await new Promise((resolve, reject) =>
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 })
+        );
+        const { latitude: lat, longitude: lng } = pos.coords;
+
+        const res = await fetch("/pharmacy/nearby", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lat, lng }),
+        });
+        const data = await res.json();
+        removeTypingIndicator();
+
+        const pharmacies = data.pharmacies || [];
+        if (!pharmacies.length) {
+            appendAssistantMessage("We couldn't find any Dischem or Clicks pharmacies near you. Please search on [Google Maps](https://www.google.com/maps/search/pharmacy+near+me).");
+            return;
+        }
+
+        // Group by brand
+        const brands = {};
+        for (const p of pharmacies) {
+            if (!brands[p.brand]) brands[p.brand] = [];
+            brands[p.brand].push(p);
+        }
+
+        let html = `<div class="pharmacy-results"><p class="pharmacy-intro">Here are the nearest pharmacies to you:</p>`;
+        for (const [brand, list] of Object.entries(brands)) {
+            html += `<div class="pharmacy-brand-group"><h4 class="pharmacy-brand-title">${brand}</h4>`;
+            for (const p of list) {
+                const mapsUrl = `https://www.google.com/maps/place/?q=place_id:${p.place_id}`;
+                const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&destination_place_id=${p.place_id}`;
+                const openStatus = p.open_now === true ? '<span class="pharm-open">Open now</span>' : p.open_now === false ? '<span class="pharm-closed">Closed</span>' : '';
+                const rating = p.rating ? `⭐ ${p.rating}` : '';
+                const phone = p.phone ? `<a href="tel:${p.phone}" class="pharm-phone">📞 ${p.phone}</a>` : '';
+                html += `
+                <div class="pharmacy-card">
+                    <div class="pharmacy-info">
+                        <strong class="pharmacy-name">${p.name}</strong>
+                        <span class="pharmacy-address">${p.address}</span>
+                        ${phone}
+                        <span class="pharmacy-meta">${[rating, openStatus].filter(Boolean).join(' &nbsp;·&nbsp; ')}</span>
+                    </div>
+                    <div class="pharmacy-actions">
+                        <a href="${mapsUrl}" target="_blank" class="pharm-btn pharm-btn-view">View</a>
+                        <a href="${directionsUrl}" target="_blank" class="pharm-btn pharm-btn-directions">Directions</a>
+                    </div>
+                </div>`;
+            }
+            html += `</div>`;
+        }
+        html += `</div>`;
+
+        const bubble = document.createElement("div");
+        bubble.className = "message assistant-message";
+        bubble.innerHTML = html;
+        chatMessages.appendChild(bubble);
+        bubble.scrollIntoView({ behavior: "smooth", block: "end" });
+
+    } catch (err) {
+        removeTypingIndicator();
+        if (err.code === 1) {
+            appendAssistantMessage("Location access was denied. You can find your nearest pharmacy on [Google Maps](https://www.google.com/maps/search/Dischem+OR+Clicks+pharmacy+near+me).");
+        } else {
+            appendAssistantMessage("We couldn't retrieve nearby pharmacies at this time. Please search on [Google Maps](https://www.google.com/maps/search/Dischem+OR+Clicks+pharmacy+near+me).");
+        }
+    }
 }
 
 function hideFormPanel() {
@@ -754,12 +1013,10 @@ function renderMarkdown(el, text) {
         }
 
         // Headings — convert to bold text instead of large headers
-        const h3 = line.match(/^###\s+(.*)/);
-        const h2 = line.match(/^##\s+(.*)/);
-        const h1 = line.match(/^#\s+(.*)/);
-        if (h1 || h2 || h3) {
+        const hMatch = line.match(/^#{1,6}\s+(.*)/);
+        if (hMatch) {
             if (inList) { html += "</ul>"; inList = false; }
-            const content = inlineFormat((h3 || h2 || h1)[1]);
+            const content = inlineFormat(hMatch[1]);
             html += `<p class="md-heading">${content}</p>`;
             continue;
         }

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Care Navigation — Access Care Navigation Agent{% endblock %}
+{% block title %}Care Navigation — Health Access{% endblock %}
 
 {% block content %}
 <div class="chat-layout">
@@ -62,10 +62,93 @@
         <!-- Landing Screen -->
         <div class="landing-screen" id="landingScreen">
             <div class="landing-logo">
-                <img src="{{ url_for('static', filename='Linein2.jpg') }}" alt="Logo" />
+                <img src="{{ url_for('static', filename='images/health_access_logo.png') }}" alt="Logo" />
             </div>
             <h1 class="landing-heading">How can I help?</h1>
             <button class="landing-btn" id="getStartedBtn">Get started</button>
+        </div>
+
+        <!-- Patient Details Screen -->
+        <div class="patient-details-screen" id="patientDetailsScreen" style="display:none;">
+            <div class="patient-details-card">
+                <h2 class="patient-details-title">Your Details</h2>
+                <p class="patient-details-subtitle">Please fill in your information before we get started.</p>
+                <form id="patientDetailsForm" autocomplete="off">
+                    <div class="pd-field">
+                        <label for="pd-name">Full Name</label>
+                        <input type="text" id="pd-name" name="name" placeholder="e.g. Jane Smith" required />
+                    </div>
+                    <div class="pd-field">
+                        <label for="pd-dob">Date of Birth</label>
+                        <input type="date" id="pd-dob" name="dob" required />
+                    </div>
+                    <div class="pd-field">
+                        <label for="pd-insurance-provider">Insurance Provider</label>
+                        <input type="text" id="pd-insurance-provider" name="insurance_provider" placeholder="e.g. Bupa, AXA Health" required />
+                    </div>
+                    <div class="pd-field">
+                        <label for="pd-insurance-level">Level of Insurance</label>
+                        <select id="pd-insurance-level" name="insurance_level" required>
+                            <option value="" disabled selected>Select level</option>
+                            <option value="Basic">Basic</option>
+                            <option value="Standard">Standard</option>
+                            <option value="Enhanced">Enhanced</option>
+                            <option value="Premium">Premium</option>
+                        </select>
+                    </div>
+                    <div class="pd-field">
+                        <label for="pd-identifier">Identifier</label>
+                        <input type="text" id="pd-identifier" name="identifier" placeholder="e.g. membership or policy number" required />
+                    </div>
+                    <button type="submit" class="pd-submit-btn">Continue</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Red Flag Screen -->
+        <div class="red-flag-screen" id="redFlagScreen" style="display:none;">
+            <div class="red-flag-card">
+                <div class="red-flag-header">
+                    <div class="red-flag-icon">
+                        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                            <path d="M14 3L25.26 23H2.74L14 3z" fill="#ef4444" stroke="#ef4444" stroke-width="1.5" stroke-linejoin="round"/>
+                            <path d="M14 11v5" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+                            <circle cx="14" cy="19.5" r="1.25" fill="#fff"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="red-flag-title">Important Safety Check</h2>
+                        <p class="red-flag-subtitle">Are you experiencing any of the following right now?</p>
+                    </div>
+                </div>
+                <ul class="red-flag-list">
+                    <li>Chest pain or pressure</li>
+                    <li>Difficulty breathing or shortness of breath</li>
+                    <li>Signs of stroke — face drooping, arm weakness, speech difficulty</li>
+                    <li>Severe bleeding that won't stop</li>
+                    <li>Loss of consciousness or unresponsive</li>
+                    <li>Severe allergic reaction (swollen throat, difficulty swallowing)</li>
+                    <li>Suspected poisoning or overdose</li>
+                    <li>Sudden severe headache unlike any before</li>
+                </ul>
+                <div class="red-flag-emergency">
+                    If you or someone else is in immediate danger, call <strong>999</strong> now.
+                </div>
+                <div class="red-flag-actions">
+                    <a href="tel:999" class="red-flag-btn-emergency">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M3 2h2.5l1 3-1.5 1.5a9 9 0 004.5 4.5L11 9.5l3 1V13a1 1 0 01-1 1C6.268 14 2 9.732 2 4.5A1 1 0 013 3.5V2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                        </svg>
+                        Call 999
+                    </a>
+                    <button class="red-flag-btn-continue" id="redFlagContinueBtn">
+                        None of these apply — continue
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
         </div>
 
         <!-- Chat Messages (hidden until started) -->

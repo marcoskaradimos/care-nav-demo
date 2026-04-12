@@ -5,8 +5,8 @@ import sqlite3
 from datetime import datetime, timedelta
 from collections import defaultdict
 from html.parser import HTMLParser
-from flask import Flask, render_template, request, redirect, url_for, session, Response, stream_with_context, jsonify, g
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask import Flask, render_template, request, redirect, url_for, session, Response, stream_with_context, jsonify, g, abort
+from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 from google import genai
@@ -112,11 +112,9 @@ def time_ago(dt_str):
         return ""
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = "login"
 
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
+GOOGLE_PLACES_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "")
 MODEL = "gemini-flash-latest"
 
 # ── HTML Stripper ────────────────────────────────────────────────────────────
@@ -183,6 +181,26 @@ def load_flow():
         # schedules for scheduleNode
         if "schedules" in d:
             entry["schedules"] = d["schedules"]
+        # custom system prompt and auto-trigger for AI nodes
+        if "systemPrompt" in d:
+            entry["systemPrompt"] = d["systemPrompt"]
+        if "auto_trigger" in d:
+            entry["auto_trigger"] = d["auto_trigger"]
+        # placeholder for form fields
+        for f in d.get("fields", []):
+            if "placeholder" not in [x.get("id") for x in entry["fields"]]:
+                pass  # already added above
+        # re-map fields with placeholder and options
+        entry["fields"] = []
+        for f in d.get("fields", []):
+            entry["fields"].append({
+                "id": f.get("id", ""),
+                "label": f.get("label", ""),
+                "type": f.get("type", "text"),
+                "required": f.get("required", False),
+                "placeholder": f.get("placeholder", ""),
+                "options": f.get("options", []),
+            })
         nodes[nid] = entry
 
     # ── Blood test: inject dedicated type form + patient details ────────────
@@ -400,10 +418,12 @@ def build_node_response(node_id):
     ctype = current["type"] if current else "end"
 
     if ctype == "endNode":
+        node_msg = current.get("message", "")
+        msg = combined_message + ("\n\n" + node_msg if node_msg else "") if combined_message else node_msg
         return {
             "node_id": current_id,
             "type": "end",
-            "message": combined_message,
+            "message": msg,
             "options": [],
             "fields": [],
             "is_end": True,
@@ -448,6 +468,19 @@ def build_node_response(node_id):
             "is_end": False,
         }
 
+    if ctype == "apptSymptomNode":
+        msg = current["message"] or ""
+        if combined_message:
+            msg = combined_message + ("\n\n" + msg if msg else "")
+        return {
+            "node_id": current_id,
+            "type": "appt_symptom",
+            "message": msg,
+            "options": current.get("options", []),
+            "fields": current.get("fields", []),
+            "is_end": False,
+        }
+
     if ctype == "questionNode":
         msg = current["message"] or ""
         if combined_message:
@@ -465,10 +498,11 @@ def build_node_response(node_id):
         return {
             "node_id": current_id,
             "type": "ai",
-            "message": combined_message or current["label"],
+            "message": combined_message or current.get("label", ""),
             "options": [],
             "fields": [],
             "is_end": False,
+            "auto_trigger": current.get("auto_trigger", False),
         }
 
     if ctype == "createTicketNode":
@@ -520,58 +554,56 @@ def build_node_response(node_id):
 
 
 # ── Auth ─────────────────────────────────────────────────────────────────────
-ADMIN_USER = {
-    "id": "1",
-    "username": "admin",
-    "password_hash": generate_password_hash("admin123"),
+# Staff users for inbox access
+STAFF_USERS = {
+    "staff": generate_password_hash("staff123"),
+    "admin": generate_password_hash("admin123"),
 }
 
-class User(UserMixin):
-    def __init__(self, user_id, username):
-        self.id = user_id
-        self.username = username
+def staff_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("staff_authenticated"):
+            return redirect(url_for("staff_login", next=request.url))
+        return f(*args, **kwargs)
+    return decorated
 
-@login_manager.user_loader
-def load_user(user_id):
-    if user_id == ADMIN_USER["id"]:
-        return User(ADMIN_USER["id"], ADMIN_USER["username"])
-    return None
 
 # ── Routes ───────────────────────────────────────────────────────────────────
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if current_user.is_authenticated:
-        return redirect(url_for("index"))
+
+@app.route("/staff/login", methods=["GET", "POST"])
+def staff_login():
+    if session.get("staff_authenticated"):
+        return redirect(url_for("inbox"))
     error = None
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
-        if username == ADMIN_USER["username"] and check_password_hash(ADMIN_USER["password_hash"], password):
-            login_user(User(ADMIN_USER["id"], ADMIN_USER["username"]))
-            return redirect(request.args.get("next") or url_for("index"))
-        error = "Invalid username or password. Please try again."
-    return render_template("login.html", error=error)
+        hashed = STAFF_USERS.get(username)
+        if hashed and check_password_hash(hashed, password):
+            session["staff_authenticated"] = True
+            session["staff_username"] = username
+            return redirect(request.args.get("next") or url_for("inbox"))
+        error = "Invalid username or password."
+    return render_template("staff_login.html", error=error)
 
-@app.route("/logout")
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for("login"))
+@app.route("/staff/logout")
+def staff_logout():
+    session.pop("staff_authenticated", None)
+    session.pop("staff_username", None)
+    return redirect(url_for("staff_login"))
 
 @app.route("/")
-@login_required
 def index():
     return render_template("index.html")
 
 @app.route("/flow/start")
-@login_required
 def flow_start():
     """Return the initial flow state (start node)."""
     result = build_node_response("start")
     return jsonify(result)
 
 @app.route("/flow/step", methods=["POST"])
-@login_required
 def flow_step():
     """
     Advance the flow.
@@ -604,6 +636,38 @@ def flow_step():
         return jsonify({"node_id": node_id, "type": "end", "message": "Thank you for using our service.", "options": [], "fields": [], "is_end": True})
 
     # ── Create ticket if this is a patient details form submission ────────────
+    # Clinician consultation request — create ticket from accumulated all_form_data
+    if node_id == "appt_contact_time" and all_form_data:
+        try:
+            patient_name = all_form_data.get("patient_name", "Unknown")
+            now = datetime.utcnow().isoformat()
+            symptoms = all_form_data.get("symptom_description", "")
+            available_time = all_form_data.get("available_time", "")
+            contact_number = all_form_data.get("contact_number", "")
+            title = f"Clinician Consultation – {symptoms[:60]}{'...' if len(symptoms) > 60 else ''}" if symptoms else "Clinician Consultation Request"
+            db = get_db()
+            db.execute(
+                """INSERT INTO tickets
+                   (patient_name, nhs_number, dob, phone, postcode, title, category, form_data, status, priority, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Open', 'Medium', ?, ?)""",
+                (
+                    patient_name,
+                    all_form_data.get("identifier", ""),
+                    all_form_data.get("dob", ""),
+                    contact_number,
+                    "",
+                    title,
+                    "Appointments",
+                    json.dumps(all_form_data),
+                    now,
+                    now,
+                )
+            )
+            db.commit()
+            db.close()
+        except Exception as e:
+            app.logger.error(f"Clinician ticket creation failed: {e}")
+
     PATIENT_DETAIL_NODES = {
         "synthetic_blood_test_patient",
         "synthetic_patient_details_customFormNode-1764448405115",
@@ -650,8 +714,69 @@ def flow_step():
 
     return jsonify(result)
 
+@app.route("/pharmacy/nearby", methods=["POST"])
+def pharmacy_nearby():
+    """Find nearby Dischem and Clicks pharmacies using Google Places API."""
+    import urllib.request
+    import urllib.parse
+
+    data = request.get_json()
+    lat = data.get("lat")
+    lng = data.get("lng")
+
+    if not lat or not lng:
+        return jsonify({"error": "Location required"}), 400
+
+    def get_phone(place_id):
+        """Fetch formatted phone number from Place Details API."""
+        try:
+            params = urllib.parse.urlencode({
+                "place_id": place_id,
+                "fields": "formatted_phone_number",
+                "key": GOOGLE_PLACES_API_KEY,
+            })
+            url = f"https://maps.googleapis.com/maps/api/place/details/json?{params}"
+            with urllib.request.urlopen(url, timeout=5) as resp:
+                detail = json.loads(resp.read())
+            return detail.get("result", {}).get("formatted_phone_number", "")
+        except Exception:
+            return ""
+
+    results = []
+    for brand in ["Dischem", "Clicks"]:
+        params = urllib.parse.urlencode({
+            "location": f"{lat},{lng}",
+            "rankby": "distance",
+            "keyword": brand,
+            "type": "pharmacy",
+            "key": GOOGLE_PLACES_API_KEY,
+        })
+        url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?{params}"
+        try:
+            with urllib.request.urlopen(url, timeout=5) as resp:
+                payload = json.loads(resp.read())
+            places = payload.get("results", [])[:3]
+            for p in places:
+                loc = p.get("geometry", {}).get("location", {})
+                place_id = p.get("place_id", "")
+                results.append({
+                    "brand": brand,
+                    "name": p.get("name", brand),
+                    "address": p.get("vicinity", ""),
+                    "rating": p.get("rating"),
+                    "open_now": p.get("opening_hours", {}).get("open_now"),
+                    "place_id": place_id,
+                    "lat": loc.get("lat"),
+                    "lng": loc.get("lng"),
+                    "phone": get_phone(place_id),
+                })
+        except Exception as e:
+            app.logger.error(f"Places API error for {brand}: {e}")
+
+    return jsonify({"pharmacies": results})
+
+
 @app.route("/flow/ai", methods=["POST"])
-@login_required
 def flow_ai():
     """Stream an AI response for knowledgeBaseNode or questionNode."""
     data = request.get_json()
@@ -662,12 +787,16 @@ def flow_ai():
     node = get_node(node_id) if node_id else None
     label = node["label"] if node else "medical query"
 
-    system_prompt = (
-        f"You are a helpful medical practice assistant for Access Care Navigation Agent. "
-        f"The patient is asking about: {label}. "
-        f"Be professional, empathetic, and concise. "
-        f"Always remind patients to call 999 for emergencies and 111 for urgent non-emergency care."
-    )
+    # Use node-level systemPrompt if defined, otherwise default
+    if node and node.get("systemPrompt"):
+        system_prompt = node["systemPrompt"]
+    else:
+        system_prompt = (
+            f"You are a helpful medical practice assistant for Health Access. "
+            f"The patient is asking about: {label}. "
+            f"Be professional, empathetic, and concise. "
+            f"Always remind patients to call 999 for emergencies and 111 for urgent non-emergency care."
+        )
 
     messages = []
     for entry in history:
@@ -781,7 +910,7 @@ def _build_ticket_list(filters=None):
 
 
 @app.route("/inbox")
-@login_required
+@staff_required
 def inbox():
     status_filter = request.args.get("status", "Open")
     sort = request.args.get("sort", "newest")
@@ -800,7 +929,7 @@ def inbox():
 
 
 @app.route("/inbox/<int:ticket_id>")
-@login_required
+@staff_required
 def ticket_detail(ticket_id):
     # Mark as read
     db = get_db()
@@ -862,7 +991,7 @@ def ticket_detail(ticket_id):
 
 
 @app.route("/inbox/<int:ticket_id>/update", methods=["POST"])
-@login_required
+@staff_required
 def ticket_update(ticket_id):
     status = request.form.get("status", "Open")
     priority = request.form.get("priority", "Medium")
@@ -885,7 +1014,7 @@ def ticket_update(ticket_id):
 
 
 @app.route("/inbox/<int:ticket_id>/close", methods=["POST"])
-@login_required
+@staff_required
 def ticket_close(ticket_id):
     now = datetime.utcnow().isoformat()
     db = get_db()
@@ -899,7 +1028,7 @@ def ticket_close(ticket_id):
 
 
 @app.route("/inbox/<int:ticket_id>/note", methods=["POST"])
-@login_required
+@staff_required
 def ticket_note(ticket_id):
     content = request.form.get("content", "").strip()
     if content:
@@ -907,7 +1036,7 @@ def ticket_note(ticket_id):
         db = get_db()
         db.execute(
             "INSERT INTO notes (ticket_id, author, content, created_at) VALUES (?, ?, ?, ?)",
-            (ticket_id, current_user.username, content, now)
+            (ticket_id, session.get("staff_username", "Staff"), content, now)
         )
         db.commit()
         db.close()
@@ -922,7 +1051,7 @@ def ticket_note(ticket_id):
 
 
 @app.route("/dashboard")
-@login_required
+@staff_required
 def dashboard():
     days = int(request.args.get("days", 30))
     db = get_db()
@@ -1028,7 +1157,7 @@ def dashboard():
 
 
 @app.route("/inbox/counts")
-@login_required
+@staff_required
 def inbox_counts():
     db = get_db()
     total_open = db.execute("SELECT COUNT(*) FROM tickets WHERE status='Open'").fetchone()[0]
@@ -1052,16 +1181,7 @@ def inbox_counts():
 
 @app.context_processor
 def inject_open_ticket_count():
-    if current_user.is_authenticated:
-        try:
-            db = get_db()
-            count = db.execute("SELECT COUNT(*) FROM tickets WHERE status NOT IN ('Closed', 'Resolved')").fetchone()[0]
-            db.close()
-        except Exception:
-            count = 0
-    else:
-        count = 0
-    return {"open_ticket_count": count}
+    return {"open_ticket_count": 0, "staff_authenticated": session.get("staff_authenticated", False)}
 
 
 if __name__ == "__main__":

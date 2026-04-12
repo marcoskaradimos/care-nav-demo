@@ -911,10 +911,16 @@
                     "target": "waitNode-1764444701543"
                 },
                 {
-                    "id": "xy-edge__optionsNode-1764444062423opt-1-1764444062423-buttonNode-1764444442388",
+                    "id": "xy-edge__optionsNode-1764444062423opt-1-1764444062423-local_pharmacist_form",
                     "source": "optionsNode-1764444062423",
-                    "target": "buttonNode-1764444442388",
+                    "target": "local_pharmacist_form",
                     "sourceHandle": "opt-1-1764444062423"
+                },
+                {
+                    "id": "xy-edge__local_pharmacist_form-buttonNode-1764444442388",
+                    "source": "local_pharmacist_form",
+                    "target": "buttonNode-1764444442388",
+                    "selected": false
                 },
                 {
                     "id": "xy-edge__optionsNode-1765230716594opt-2-1765230716594-online_triage_info",
@@ -958,6 +964,51 @@
                     "source": "waitNode-1765388101585",
                     "target": "optionsNode-1765230716594",
                     "selected": false
+                },
+                {
+                    "id": "xy-edge__optionsNode-1765230716594-opt-describe-symptoms-appt_symptom_node",
+                    "source": "optionsNode-1765230716594",
+                    "target": "appt_symptom_node",
+                    "selected": false,
+                    "sourceHandle": "opt-describe-symptoms"
+                },
+                {
+                    "id": "xy-edge__appt_symptom_node-appt_symptom_ai",
+                    "source": "appt_symptom_node",
+                    "target": "appt_symptom_ai",
+                    "selected": false
+                },
+                {
+                    "id": "xy-edge__appt_clinician_form-appt_contact_time",
+                    "source": "appt_clinician_form",
+                    "target": "appt_contact_time",
+                    "selected": false
+                },
+                {
+                    "id": "xy-edge__appt_contact_time-appt_clinician_end",
+                    "source": "appt_contact_time",
+                    "target": "appt_clinician_end",
+                    "selected": false
+                },
+                {
+                    "id": "xy-edge__appt_symptom_ai-appt_care_options",
+                    "source": "appt_symptom_ai",
+                    "target": "appt_care_options",
+                    "selected": false
+                },
+                {
+                    "id": "xy-edge__appt_care_options-self_care-appt_self_care_end",
+                    "source": "appt_care_options",
+                    "target": "appt_self_care_end",
+                    "selected": false,
+                    "sourceHandle": "opt_self_care"
+                },
+                {
+                    "id": "xy-edge__appt_care_options-clinician-appt_clinician_form",
+                    "source": "appt_care_options",
+                    "target": "appt_clinician_form",
+                    "selected": false,
+                    "sourceHandle": "opt_speak_clinician"
                 },
                 {
                     "id": "xy-edge__messageNode-1764439626609-endNode-outofhours",
@@ -1346,7 +1397,7 @@
                         "options": [
                             {
                                 "id": "opt_appointments",
-                                "text": "Appointments",
+                                "text": "Book an appointment",
                                 "type": "internal"
                             },
                             {
@@ -1406,6 +1457,139 @@
                         "y": 860
                     },
                     "selected": true
+                },
+                {
+                    "id": "appt_contact_time",
+                    "data": {
+                        "label": "Contact Availability",
+                        "form_title": "Confirm Your Availability",
+                        "message": "Thank you. A clinician will be in touch with you shortly.\n\n⚠️ If your symptoms worsen before we contact you, please do not wait — call us on 01234 567890 or dial NHS 111 for urgent advice. In an emergency, always call 999.",
+                        "fields": [
+                            {
+                                "id": "available_time",
+                                "label": "What time are you available to be contacted?",
+                                "type": "select",
+                                "options": ["Select a time", "Morning (8am – 12pm)", "Early afternoon (12pm – 2pm)", "Afternoon (2pm – 4pm)", "Late afternoon (4pm – 6:30pm)"],
+                                "required": true
+                            },
+                            {
+                                "id": "contact_number",
+                                "label": "Best contact number",
+                                "type": "text",
+                                "placeholder": "e.g. 07700 900000",
+                                "required": true
+                            }
+                        ]
+                    },
+                    "type": "customFormNode"
+                },
+                {
+                    "id": "appt_clinician_end",
+                    "data": {
+                        "label": "Request Confirmed",
+                        "message": "✅ Your consultation request has been received and sent to our team. A clinician will contact you at your preferred time.\n\nRemember: if your symptoms worsen at any point, please call us immediately on 01234 567890, contact NHS 111, or in an emergency call 999."
+                    },
+                    "type": "endNode"
+                },
+                {
+                    "id": "appt_care_options",
+                    "data": {
+                        "label": "Care Decision",
+                        "message": "Based on the information provided, how would you like to proceed?",
+                        "options": [
+                            {
+                                "id": "opt_self_care",
+                                "text": "Self Care Accepted",
+                                "type": "internal"
+                            },
+                            {
+                                "id": "opt_speak_clinician",
+                                "text": "Speak to a Clinician",
+                                "type": "internal"
+                            }
+                        ]
+                    },
+                    "type": "optionsNode"
+                },
+                {
+                    "id": "appt_self_care_end",
+                    "data": {
+                        "label": "Self Care",
+                        "message": "That's great — we're glad you feel confident managing this at home. Take care of yourself and don't hesitate to rest up! 💙\n\nIf your symptoms worsen, do not improve within a few days, or you develop any new concerns, please contact us again on 01234 567890 or call NHS 111 for further advice. In an emergency, always call 999.\n\nWe hope you feel better soon."
+                    },
+                    "type": "endNode"
+                },
+                {
+                    "id": "appt_clinician_form",
+                    "data": {
+                        "label": "Speak to a Clinician",
+                        "form_title": "Clinician Consultation Request",
+                        "message": "Please provide some additional information to help the clinician prepare for your consultation.",
+                        "fields": [
+                            {
+                                "id": "original_symptoms",
+                                "label": "Described symptoms",
+                                "type": "prefilled_readonly",
+                                "placeholder": "",
+                                "required": false
+                            },
+                            {
+                                "id": "additional_symptoms",
+                                "label": "Any additional symptoms?",
+                                "type": "textarea",
+                                "placeholder": "Please describe any further symptoms you have noticed...",
+                                "required": false
+                            },
+                            {
+                                "id": "associated_symptoms",
+                                "label": "Any other associated symptoms?",
+                                "type": "textarea",
+                                "placeholder": "e.g. fatigue, dizziness, changes in appetite...",
+                                "required": false
+                            },
+                            {
+                                "id": "experiencing_pain",
+                                "label": "Are you experiencing pain?",
+                                "type": "pain_check",
+                                "required": false
+                            },
+                            {
+                                "id": "consultation_expectation",
+                                "label": "What are you expecting from the consultation?",
+                                "type": "textarea",
+                                "placeholder": "e.g. diagnosis, referral, prescription, advice...",
+                                "required": false
+                            }
+                        ]
+                    },
+                    "type": "customFormNode"
+                },
+                {
+                    "id": "appt_symptom_ai",
+                    "data": {
+                        "label": "Differential Diagnosis AI",
+                        "systemPrompt": "You are a clinical triage assistant for a GP practice. The patient has described their symptoms. Structure your response in two clear sections using markdown:\n\n**Section 1 — Differential Diagnosis**\nList 3-5 possible conditions in order of likelihood. For each include: the condition name, why it fits the symptoms, and key red flag signs to watch for.\n\n**Section 2 — Self-Care Advice**\nBased on the symptoms described, provide practical self-care advice the patient can follow at home (e.g. rest, hydration, over-the-counter remedies, monitoring symptoms). Keep this clear and actionable. Include a note that self-care is appropriate only if no red flags are present.\n\nEnd with a brief note that the patient can accept self-care or speak to a clinician below. Do not provide definitive diagnoses — always recommend professional assessment if symptoms worsen.",
+                        "auto_trigger": true
+                    },
+                    "type": "knowledgeBaseNode"
+                },
+                {
+                    "id": "appt_symptom_node",
+                    "data": {
+                        "label": "Describe Symptoms",
+                        "form_title": "Describe your symptoms",
+                        "message": "Please describe your symptoms or reason for the appointment.",
+                        "fields": [
+                            {
+                                "id": "symptom_description",
+                                "label": "Describe your symptoms",
+                                "type": "textarea",
+                                "placeholder": "Please describe your symptoms or reason for appointment...",
+                                "required": true
+                            }
+                        ]
+                    },
+                    "type": "customFormNode"
                 },
                 {
                     "id": "appointments_info",
@@ -3059,6 +3243,59 @@
                     "selected": false
                 },
                 {
+                    "id": "local_pharmacist_form",
+                    "data": {
+                        "label": "Local Pharmacist",
+                        "form_title": "Pharmacist Consultation",
+                        "message": "Please answer a few questions so the pharmacist can assist you effectively.",
+                        "fields": [
+                            {
+                                "id": "symptom_start",
+                                "label": "When did the symptoms start?",
+                                "type": "text",
+                                "placeholder": "e.g. 2 days ago, last Monday...",
+                                "required": true
+                            },
+                            {
+                                "id": "symptom_progress",
+                                "label": "Are the symptoms getting better or worse?",
+                                "type": "select",
+                                "options": ["Select an option", "Getting better", "Staying the same", "Getting worse"],
+                                "required": true
+                            },
+                            {
+                                "id": "symptom_impact",
+                                "label": "How are the symptoms affecting you?",
+                                "type": "textarea",
+                                "placeholder": "e.g. difficulty sleeping, pain when urinating, unable to work...",
+                                "required": true
+                            },
+                            {
+                                "id": "had_before",
+                                "label": "Have you had these symptoms before?",
+                                "type": "select",
+                                "options": ["Select an option", "Yes", "No", "Not sure"],
+                                "required": true
+                            },
+                            {
+                                "id": "remedies_tried",
+                                "label": "What remedies have you already tried?",
+                                "type": "textarea",
+                                "placeholder": "e.g. paracetamol, drinking more water, cranberry juice...",
+                                "required": false
+                            },
+                            {
+                                "id": "how_to_help",
+                                "label": "How would you like us to help you?",
+                                "type": "textarea",
+                                "placeholder": "e.g. recommend a treatment, refer to GP, advise on next steps...",
+                                "required": true
+                            }
+                        ]
+                    },
+                    "type": "customFormNode"
+                },
+                {
                     "id": "optionsNode-1764444062423",
                     "data": {
                         "label": "Pharmacy first options",
@@ -4342,6 +4579,11 @@
                             {
                                 "id": "opt-2-1765230716594",
                                 "text": "Nurse & HCA appointments",
+                                "type": "internal"
+                            },
+                            {
+                                "id": "opt-describe-symptoms",
+                                "text": "Describe your symptoms",
                                 "type": "internal"
                             }
                         ]
