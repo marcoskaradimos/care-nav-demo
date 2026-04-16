@@ -1096,7 +1096,7 @@
                 {
                     "id": "xy-edge__optionsNode-1765230716594opt-1-1765230716594-optionsNode-1766295733833",
                     "source": "optionsNode-1765230716594",
-                    "target": "optionsNode-1766295733833",
+                    "target": "waitNode-1765093937201",
                     "sourceHandle": "opt-1-1765230716594"
                 },
                 {
@@ -1399,46 +1399,6 @@
                                 "id": "opt_appointments",
                                 "text": "Book an appointment",
                                 "type": "internal"
-                            },
-                            {
-                                "id": "opt_medical_certificates",
-                                "text": "Medical Certificates",
-                                "type": "internal"
-                            },
-                            {
-                                "id": "opt_patient_registration",
-                                "text": "Register with the Practice",
-                                "type": "internal"
-                            },
-                            {
-                                "id": "opt_prescriptions",
-                                "text": "Medicine",
-                                "type": "internal"
-                            },
-                            {
-                                "id": "opt_test_results",
-                                "text": "Test Results",
-                                "type": "internal"
-                            },
-                            {
-                                "id": "opt_general_enquiry",
-                                "text": "Submit a General Enquiry",
-                                "type": "internal"
-                            },
-                            {
-                                "id": "option-1765230981603",
-                                "text": "Check my symptoms",
-                                "type": "internal"
-                            },
-                            {
-                                "id": "option-1765094269500",
-                                "text": "Ask a question",
-                                "type": "internal"
-                            },
-                            {
-                                "id": "opt_dentist_referral",
-                                "text": "Dentist Referral",
-                                "type": "internal"
                             }
                         ],
                         "allowTypedResponse": true,
@@ -1559,6 +1519,13 @@
                                 "type": "textarea",
                                 "placeholder": "e.g. diagnosis, referral, prescription, advice...",
                                 "required": false
+                            },
+                            {
+                                "id": "patient_urgency",
+                                "label": "How urgent do you feel your situation is?",
+                                "type": "select",
+                                "options": ["Select one", "Not urgent — I can wait a few days", "Fairly urgent — I'd like to be seen within 24 hours", "Very urgent — I need help today", "Emergency — I need immediate assistance"],
+                                "required": true
                             }
                         ]
                     },
@@ -4574,11 +4541,6 @@
                             {
                                 "id": "opt-1-1765230716594",
                                 "text": "Doctors appointment",
-                                "type": "internal"
-                            },
-                            {
-                                "id": "opt-2-1765230716594",
-                                "text": "Nurse & HCA appointments",
                                 "type": "internal"
                             },
                             {

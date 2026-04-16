@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Ticket #{{ selected.id }} — Access Care Navigation Agent{% endblock %}
+{% block title %}Ticket #{{ selected.id }} — Health Access{% endblock %}
 
 {% block head %}
 <style>
@@ -449,6 +449,25 @@
     border-radius: var(--radius-md);
     padding: 12px 16px;
     margin-bottom: 10px;
+}
+
+.note-card--assignment {
+    background: #f0f7ff;
+    border-color: #bfdbfe;
+    border-left: 4px solid #2563eb;
+}
+
+.note-badge-assignment {
+    display: inline-flex;
+    align-items: center;
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 20px;
+    text-transform: uppercase;
 }
 
 .note-card-header {
@@ -931,10 +950,14 @@
             <!-- Form Responses card -->
             {% if selected.form_fields %}
             <div class="form-responses-card">
-                <div class="form-responses-card-header">
-                    &#128203; Form responses:
+                <div class="form-responses-card-header" style="display:flex;align-items:center;justify-content:space-between;">
+                    <span>&#128203; Form responses:</span>
+                    <button id="copyTicketBtn" title="Copy all ticket info" onclick="copyTicketInfo()" style="background:none;border:1px solid #c7d2e0;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:0.75rem;color:#4b5563;display:flex;align-items:center;gap:5px;">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                        Copy
+                    </button>
                 </div>
-                <div class="form-responses-card-body">
+                <div class="form-responses-card-body" id="formResponsesBody">
                     {% for key, val in selected.form_fields.items() %}
                     <div class="form-field-row">
                         <span class="form-field-label">{{ key | replace('_', ' ') | title }}:</span>
@@ -954,12 +977,18 @@
             <!-- Notes -->
             {% if notes %}
                 {% for note in notes %}
-                <div class="note-card">
+                {% set is_assignment = note.content.startswith('Assigned to') %}
+                <div class="note-card {% if is_assignment %}note-card--assignment{% endif %}">
                     <div class="note-card-header">
-                        <span class="note-author">{{ note.author }}</span>
+                        <div style="display:flex;align-items:center;gap:7px;">
+                            {% if is_assignment %}
+                            <span class="note-badge-assignment">&#8644; Reassigned</span>
+                            {% endif %}
+                            <span class="note-author">{{ note.author }}</span>
+                        </div>
                         <span class="note-time">{{ note.created_at[:16].replace('T', ' ') if note.created_at else '' }} UTC</span>
                     </div>
-                    <div class="note-content">{{ note.content }}</div>
+                    <div class="note-content">{{ note.content | replace('**', '') | replace('Assigned to ', '') }}</div>
                 </div>
                 {% endfor %}
             {% endif %}
@@ -1036,14 +1065,29 @@
 
                 <div class="details-field">
                     <label>Assign to</label>
-                    <select name="assigned_to" class="details-select" onchange="document.getElementById('details-form').submit()">
+                    <select name="assigned_to" id="assignedToSelect" class="details-select">
                         <option value="">Unassigned</option>
                         {% for team in teams %}
                         <option value="{{ team }}" {% if selected.assigned_to == team %}selected{% endif %}>{{ team }}</option>
                         {% endfor %}
                     </select>
                 </div>
+                <input type="hidden" name="assignment_comment" id="assignmentCommentInput" value="">
             </form>
+
+            <!-- Assignment Comment Modal -->
+            <div id="assignModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:9999; align-items:center; justify-content:center;">
+                <div style="background:#fff; border-radius:14px; padding:28px 32px; max-width:440px; width:90%; box-shadow:0 8px 40px rgba(0,0,0,0.18);">
+                    <h3 style="margin:0 0 6px; font-size:1.05rem; color:#1e293b;">Reassign Ticket</h3>
+                    <p style="margin:0 0 16px; font-size:0.85rem; color:#64748b;">Please add a comment explaining why this ticket is being reassigned before confirming.</p>
+                    <textarea id="assignCommentBox" rows="4" placeholder="e.g. Escalating to clinical team for further review..." style="width:100%; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px; font-size:0.88rem; resize:vertical; outline:none; font-family:inherit;"></textarea>
+                    <p id="assignCommentError" style="color:#dc2626; font-size:0.8rem; margin:6px 0 0; display:none;">A comment is required before reassigning.</p>
+                    <div style="display:flex; gap:10px; margin-top:18px; justify-content:flex-end;">
+                        <button id="assignCancelBtn" style="padding:8px 18px; border:1px solid #e2e8f0; background:#f8fafc; border-radius:8px; cursor:pointer; font-size:0.88rem;">Cancel</button>
+                        <button id="assignConfirmBtn" style="padding:8px 18px; background:#2563eb; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:0.88rem; font-weight:600;">Confirm Reassignment</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Close ticket button -->
@@ -1243,11 +1287,105 @@ function resetInboxSettings() {
     applyInboxSettings();
 }
 
+function copyTicketInfo() {
+    const btn = document.getElementById('copyTicketBtn');
+    const rows = document.querySelectorAll('#formResponsesBody .form-field-row');
+    const lines = [];
+
+    // Ticket header info
+    const name    = document.querySelector('.ticket-patient-name')?.textContent.trim() || '';
+    const meta    = document.querySelector('.ticket-patient-meta')?.textContent.trim().replace(/\s+/g, ' ') || '';
+    const status  = document.querySelector('.details-select')?.value || '';
+    const priority= document.querySelector('select[name="priority"]')?.value || '';
+
+    if (name)     lines.push(`Patient: ${name}`);
+    if (meta)     lines.push(`Details: ${meta}`);
+    if (status)   lines.push(`Status: ${status}`);
+    if (priority) lines.push(`Priority: ${priority}`);
+    lines.push('');
+    lines.push('--- Form Responses ---');
+
+    rows.forEach(row => {
+        const label = row.querySelector('.form-field-label')?.textContent.trim() || '';
+        const value = row.querySelector('.form-field-value')?.textContent.trim() || '—';
+        lines.push(`${label} ${value}`);
+    });
+
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+        btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 8.5l3.5 3.5 7-7" stroke="#16a34a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Copied!`;
+        btn.style.color = '#16a34a';
+        btn.style.borderColor = '#86efac';
+        setTimeout(() => {
+            btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Copy`;
+            btn.style.color = '#4b5563';
+            btn.style.borderColor = '#c7d2e0';
+        }, 2000);
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-open-inbox-settings]').forEach(el => {
         el.addEventListener('click', e => { e.preventDefault(); openInboxSettings(); });
     });
     applyInboxSettings();
+
+    // ── Assignment comment modal ──────────────────────────────────────────
+    const assignSelect   = document.getElementById('assignedToSelect');
+    const assignModal    = document.getElementById('assignModal');
+    const assignComment  = document.getElementById('assignCommentBox');
+    const assignError    = document.getElementById('assignCommentError');
+    const assignConfirm  = document.getElementById('assignConfirmBtn');
+    const assignCancel   = document.getElementById('assignCancelBtn');
+    const commentInput   = document.getElementById('assignmentCommentInput');
+    const detailsForm    = document.getElementById('details-form');
+
+    let previousAssignment = assignSelect ? assignSelect.value : '';
+
+    if (assignSelect) {
+        assignSelect.addEventListener('change', () => {
+            const newValue = assignSelect.value;
+            // If changing to a different group (not just deselecting), require a comment
+            if (newValue !== previousAssignment) {
+                assignModal.style.display = 'flex';
+                assignComment.value = '';
+                assignError.style.display = 'none';
+                assignComment.focus();
+            }
+        });
+    }
+
+    if (assignCancel) {
+        assignCancel.addEventListener('click', () => {
+            // Revert the select back to previous value
+            assignSelect.value = previousAssignment;
+            assignModal.style.display = 'none';
+        });
+    }
+
+    if (assignConfirm) {
+        assignConfirm.addEventListener('click', () => {
+            const comment = assignComment.value.trim();
+            if (!comment) {
+                assignError.style.display = 'block';
+                assignComment.focus();
+                return;
+            }
+            assignError.style.display = 'none';
+            commentInput.value = comment;
+            assignModal.style.display = 'none';
+            previousAssignment = assignSelect.value;
+            detailsForm.submit();
+        });
+    }
+
+    // Allow Enter key in textarea to NOT submit, Ctrl+Enter to confirm
+    if (assignComment) {
+        assignComment.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                assignConfirm.click();
+            }
+        });
+    }
 });
 </script>
 {% endblock %}

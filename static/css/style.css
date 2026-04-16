@@ -1596,3 +1596,60 @@ html, body {
     font-weight: 500;
 }
 .pharm-phone:hover { text-decoration: underline; }
+
+/* ===== Booking Calendar ===== */
+.booking-calendar-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+
+.booking-calendar-intro {
+    font-size: 0.9rem;
+    color: #4b5563;
+}
+
+.booking-calendar-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #2563eb;
+    color: #fff;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.92rem;
+    padding: 12px 20px;
+    border-radius: 10px;
+    width: fit-content;
+    transition: background 0.2s;
+}
+
+.booking-calendar-btn:hover {
+    background: #1d4ed8;
+    color: #fff;
+}
+
+.booking-calendar-note {
+    font-size: 0.78rem;
+    color: #94a3b8;
+}
+
+/* ===== NHS Link Badge ===== */
+.nhs-link {
+    display: inline-block;
+    background: #005eb8;
+    color: #fff !important;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 4px;
+    text-decoration: none;
+    vertical-align: middle;
+    margin-left: 6px;
+    letter-spacing: 0.03em;
+}
+.nhs-link:hover {
+    background: #003f80;
+    color: #fff !important;
+}

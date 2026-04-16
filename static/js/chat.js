@@ -788,9 +788,10 @@ function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
             } else {
                 renderFlowNode(data);
             }
-            // After pharmacist form, find nearby pharmacies
+            // After pharmacist form, find nearby pharmacies then show booking calendar
             if (nodeId === "local_pharmacist_form") {
-                showNearbyPharmacies();
+                await showNearbyPharmacies();
+                showBookingCalendar();
             }
         } catch (err) {
             removeTypingIndicator();
@@ -800,6 +801,27 @@ function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
     });
 
     formPanel.appendChild(form);
+}
+
+// ===== Booking Calendar =====
+function showBookingCalendar() {
+    const wrapper = document.createElement("div");
+    wrapper.className = "message assistant-message";
+    wrapper.innerHTML = `
+        <div class="booking-calendar-wrapper">
+            <p class="booking-calendar-intro">To complete your referral, please book an appointment with the pharmacist:</p>
+            <a href="https://calendar.app.google/gnqrEkLNFWgPvErP7" target="_blank" class="booking-calendar-btn">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <rect x="1" y="3" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M1 7h16" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M5 1v4M13 1v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                View Available Appointment Times
+            </a>
+            <p class="booking-calendar-note">Opens your pharmacist's booking calendar in a new tab — select a time that suits you.</p>
+        </div>`;
+    chatMessages.appendChild(wrapper);
+    wrapper.scrollIntoView({ behavior: "smooth", block: "end" });
 }
 
 // ===== Pharmacy Finder =====
@@ -1003,6 +1025,11 @@ function renderMarkdown(el, text) {
         .replace(/\*(.*?)\*/g, "<em>$1</em>")
         .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
 
+    const nhsLink = (condition) => {
+        const query = encodeURIComponent(condition.trim());
+        return `<a href="https://www.nhs.uk/search/results?q=${query}" target="_blank" class="nhs-link" title="View on NHS.uk">NHS</a>`;
+    };
+
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
 
@@ -1034,6 +1061,15 @@ function renderMarkdown(el, text) {
 
         // Blank line — skip
         if (line.trim() === "") continue;
+
+        // Numbered list item with a condition name e.g. "1. **Viral Infection**" or "1. Viral Infection"
+        const numberedMatch = line.match(/^(\d+)\.\s+\*\*([^*]+)\*\*(.*)/);
+        if (numberedMatch) {
+            const conditionName = numberedMatch[2].trim();
+            const rest = numberedMatch[3] ? inlineFormat(numberedMatch[3]) : "";
+            html += `<p><strong>${conditionName}</strong>${rest} ${nhsLink(conditionName)}</p>`;
+            continue;
+        }
 
         // Regular paragraph
         html += `<p>${inlineFormat(line)}</p>`;

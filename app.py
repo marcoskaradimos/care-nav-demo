@@ -433,11 +433,15 @@ def build_node_response(node_id):
         msg = current["message"] or ""
         if combined_message:
             msg = combined_message + ("\n\n" + msg if msg else "")
+        options = current["options"]
+        # For testing: restrict main menu to Book an appointment only
+        if current_id == "main_menu_options":
+            options = [o for o in options if o["id"] == "opt_appointments"]
         return {
             "node_id": current_id,
             "type": "options",
             "message": msg,
-            "options": current["options"],
+            "options": options,
             "fields": [],
             "is_end": False,
         }
@@ -645,11 +649,34 @@ def flow_step():
             available_time = all_form_data.get("available_time", "")
             contact_number = all_form_data.get("contact_number", "")
             title = f"Clinician Consultation – {symptoms[:60]}{'...' if len(symptoms) > 60 else ''}" if symptoms else "Clinician Consultation Request"
+
+            # ── Suggested priority from pain score + patient-reported urgency ──
+            def suggested_priority(data):
+                urgency = data.get("patient_urgency", "").lower()
+                pain_raw = data.get("experiencing_pain", "").lower()
+                # Extract pain score if present
+                pain_score = 0
+                if "pain score:" in pain_raw:
+                    try:
+                        pain_score = int(pain_raw.split("pain score:")[-1].strip().split("/")[0].strip())
+                    except Exception:
+                        pain_score = 0
+
+                if "emergency" in urgency or pain_score >= 9:
+                    return "Urgent"
+                if "very urgent" in urgency or pain_score >= 7:
+                    return "High"
+                if "fairly urgent" in urgency or pain_score >= 4:
+                    return "Medium"
+                return "Low"
+
+            priority = suggested_priority(all_form_data)
+
             db = get_db()
             db.execute(
                 """INSERT INTO tickets
                    (patient_name, nhs_number, dob, phone, postcode, title, category, form_data, status, priority, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Open', 'Medium', ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Open', ?, ?, ?)""",
                 (
                     patient_name,
                     all_form_data.get("identifier", ""),
@@ -659,6 +686,7 @@ def flow_step():
                     title,
                     "Appointments",
                     json.dumps(all_form_data),
+                    priority,
                     now,
                     now,
                 )
@@ -822,7 +850,7 @@ def flow_ai():
             contents.append(genai_types.Content(role="user", parts=[genai_types.Part(text=user_message)]))
             config = genai_types.GenerateContentConfig(
                 system_instruction=system_prompt,
-                max_output_tokens=1024,
+                max_output_tokens=2048,
             )
             for chunk in client.models.generate_content_stream(model=MODEL, contents=contents, config=config):
                 if chunk.text:
@@ -996,12 +1024,21 @@ def ticket_update(ticket_id):
     status = request.form.get("status", "Open")
     priority = request.form.get("priority", "Medium")
     assigned_to = request.form.get("assigned_to", "")
+    assignment_comment = request.form.get("assignment_comment", "").strip()
     now = datetime.utcnow().isoformat()
     db = get_db()
     db.execute(
         "UPDATE tickets SET status=?, priority=?, assigned_to=?, updated_at=? WHERE id=?",
         (status, priority, assigned_to, now, ticket_id)
     )
+    # Save assignment comment as a note
+    if assignment_comment and assigned_to:
+        author = session.get("staff_username", "Staff")
+        note_content = f"Assigned to **{assigned_to}**: {assignment_comment}"
+        db.execute(
+            "INSERT INTO notes (ticket_id, author, content, created_at) VALUES (?, ?, ?, ?)",
+            (ticket_id, author, note_content, now)
+        )
     db.commit()
     db.close()
     # Preserve list filters in redirect
