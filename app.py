@@ -825,25 +825,9 @@ def patient_set_proxy():
 
 @app.route("/patient/register", methods=["POST"])
 def patient_register():
-    data       = request.get_json() or {}
-    first_name = data.get("first_name", "").strip()
-    last_name  = data.get("last_name", "").strip()
-    dob        = data.get("dob", "").strip()
-    phone      = data.get("phone", "").strip()
-    nhs_number = data.get("nhs_number", "").strip()
-    postcode   = data.get("postcode", "").strip()
-    if not first_name or not last_name:
-        return jsonify({"error": "First and last name required"}), 400
-    now = datetime.utcnow().isoformat()
-    db  = get_db()
-    db.execute(
-        text("""INSERT INTO registered_patients (first_name, last_name, dob, phone, nhs_number, postcode, gp_practice, registered_at)
-                VALUES (:fn, :ln, :dob, :phone, :nhs, :pc, :gp, :now)"""),
-        {"fn": first_name, "ln": last_name, "dob": dob, "phone": phone, "nhs": nhs_number, "pc": postcode, "gp": "", "now": now}
-    )
-    db.commit()
-    db.close()
-    return jsonify({"status": "registered"})
+    """Kept for backwards compatibility but does not write to DB.
+    The registered_patients table is read-only from the app — seeded from patients.json only."""
+    return jsonify({"status": "ok"})
 
 
 @app.route("/patient/search")
@@ -1129,18 +1113,17 @@ def _create_demo_ticket(confirm_node_id, form_data):
         gp_practice  = sess_practice
 
         match_status = "unverified"
-        if session.get("matched_patient_id"):
-            match_status = "verified"
-        else:
-            matched, confidence = match_patient(first, last, dob, postcode, nhs_number)
-            if matched and confidence == "matched":
-                match_status  = "verified"
-                patient_name  = f"{matched['first_name']} {matched['last_name']}"
-                nhs_number    = matched.get("nhs_number", nhs_number)
-                dob           = matched.get("date_of_birth", dob)
-                phone         = matched.get("telephone", phone)
-                postcode      = matched.get("postcode", postcode)
-                gp_practice   = matched.get("gp_practice", gp_practice)
+        matched, confidence = match_patient(first, last, dob, postcode, nhs_number)
+        if matched and confidence == "matched":
+            match_status  = "verified"
+            patient_name  = f"{matched['first_name']} {matched['last_name']}"
+            nhs_number    = matched.get("nhs_number", nhs_number)
+            dob           = matched.get("date_of_birth", dob)
+            phone         = matched.get("telephone", phone)
+            postcode      = matched.get("postcode", postcode)
+            gp_practice   = matched.get("gp_practice", gp_practice)
+        elif matched and confidence == "partial":
+            match_status = "partial"
 
         symptom    = session.get("demo_symptom", "")
         query      = form_data.get("query_details", "")
