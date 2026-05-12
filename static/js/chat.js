@@ -59,15 +59,6 @@ async function submitPatientDetails(e) {
     const postcode   = (data.get("postcode") || "").trim();
     const fullName   = `${firstName} ${lastName}`.trim();
 
-    // Save to registered_patients DB
-    try {
-        await fetch("/patient/register", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ first_name: firstName, last_name: lastName, dob, phone, nhs_number: nhsNumber, postcode }),
-        });
-    } catch (err) { /* non-blocking */ }
-
     // Try to match / create session
     const payload = { first_name: firstName, last_name: lastName, dob, phone, nhs_number: nhsNumber, postcode };
     try {
