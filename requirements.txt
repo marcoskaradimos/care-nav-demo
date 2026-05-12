@@ -4,3 +4,6 @@ google-genai>=1.0.0
 python-dotenv==1.0.1
 werkzeug==3.0.3
 gunicorn==21.2.0
+cloud-sql-python-connector[pg8000]==1.13.0
+SQLAlchemy==2.0.36
+google-cloud-secret-manager==2.20.0
