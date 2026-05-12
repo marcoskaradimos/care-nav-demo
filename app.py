@@ -162,10 +162,12 @@ def init_db():
 
 # ── Patient Seeding ───────────────────────────────────────────────────────────
 def _seed_patients():
-    """Seed all patients from patients.json into registered_patients — truncates first for clean import."""
+    """Seed all patients from patients.json into registered_patients if table is empty."""
     try:
         with get_engine().begin() as db:
-            db.execute(text("TRUNCATE TABLE registered_patients RESTART IDENTITY"))
+            count = db.execute(text("SELECT COUNT(*) FROM registered_patients")).fetchone()[0]
+            if count > 0:
+                return
             patients = load_patients()
             now = datetime.utcnow().isoformat()
             for p in patients:
