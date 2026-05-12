@@ -136,12 +136,14 @@ def init_db():
         db.execute(text("""
             CREATE TABLE IF NOT EXISTS registered_patients (
                 id SERIAL PRIMARY KEY,
+                patient_ref TEXT,
                 first_name TEXT NOT NULL,
                 last_name TEXT NOT NULL,
                 dob TEXT,
                 phone TEXT,
                 nhs_number TEXT,
                 postcode TEXT,
+                gp_practice TEXT DEFAULT '',
                 registered_at TEXT
             )
         """))
@@ -156,6 +158,37 @@ def init_db():
             )
         """))
     _seed_staff_users()
+    _seed_patients()
+
+# ── Patient Seeding ───────────────────────────────────────────────────────────
+def _seed_patients():
+    """Seed all patients from patients.json into registered_patients if table is empty."""
+    try:
+        with get_engine().begin() as db:
+            count = db.execute(text("SELECT COUNT(*) FROM registered_patients")).fetchone()[0]
+            if count > 0:
+                return
+            patients = load_patients()
+            now = datetime.utcnow().isoformat()
+            for p in patients:
+                db.execute(text("""
+                    INSERT INTO registered_patients
+                        (patient_ref, first_name, last_name, dob, phone, nhs_number, postcode, gp_practice, registered_at)
+                    VALUES (:ref, :fn, :ln, :dob, :phone, :nhs, :pc, :gp, :now)
+                """), {
+                    "ref":   p.get("id", ""),
+                    "fn":    p["first_name"],
+                    "ln":    p["last_name"],
+                    "dob":   p.get("date_of_birth", ""),
+                    "phone": p.get("telephone", ""),
+                    "nhs":   p.get("nhs_number", ""),
+                    "pc":    p.get("postcode", ""),
+                    "gp":    p.get("gp_practice", ""),
+                    "now":   now,
+                })
+            app.logger.info(f"Seeded {len(patients)} patients into registered_patients")
+    except Exception as e:
+        app.logger.error(f"Patient seeding failed: {e}")
 
 # ── Staff User Seeding ────────────────────────────────────────────────────────
 _DEFAULT_STAFF = [
@@ -343,7 +376,7 @@ def match_patient(first_name, last_name, dob, postcode, nhs_number=""):
                     "nhs_number":    p.get("nhs_number", ""),
                     "telephone":     p.get("phone", ""),
                     "postcode":      p.get("postcode", ""),
-                    "gp_practice":   "",
+                    "gp_practice":   p.get("gp_practice", ""),
                 }
     except Exception:
         pass
@@ -804,9 +837,9 @@ def patient_register():
     now = datetime.utcnow().isoformat()
     db  = get_db()
     db.execute(
-        text("""INSERT INTO registered_patients (first_name, last_name, dob, phone, nhs_number, postcode, registered_at)
-                VALUES (:fn, :ln, :dob, :phone, :nhs, :pc, :now)"""),
-        {"fn": first_name, "ln": last_name, "dob": dob, "phone": phone, "nhs": nhs_number, "pc": postcode, "now": now}
+        text("""INSERT INTO registered_patients (first_name, last_name, dob, phone, nhs_number, postcode, gp_practice, registered_at)
+                VALUES (:fn, :ln, :dob, :phone, :nhs, :pc, :gp, :now)"""),
+        {"fn": first_name, "ln": last_name, "dob": dob, "phone": phone, "nhs": nhs_number, "pc": postcode, "gp": "", "now": now}
     )
     db.commit()
     db.close()
