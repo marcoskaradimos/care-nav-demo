@@ -2,11 +2,13 @@
 let symptomDescription = "";
 let currentNodeId = null;
 let currentNodeType = null;
+let currentNodeData = null; // full node object for back navigation
 let aiHistory = [];
 let isStreaming = false;
 let isAiMode = false;
 let formHistory = [];
 let previousOptionsState = null; // { options } saved before a form is shown
+let nodeHistory = []; // stack of previous node data objects for back navigation
 
 // ===== DOM =====
 const chatMessages     = document.getElementById("chatMessages");
@@ -22,43 +24,128 @@ const getStartedBtn    = document.getElementById("getStartedBtn");
 
 // ===== Patient Details =====
 let patientDetails = {};
+let proxyMode = false;
 
 function showPatientDetailsForm() {
     landingScreen.style.display = "none";
     const sidebar = document.querySelector(".sidebar");
     if (sidebar) sidebar.style.display = "none";
-
-    const detailsScreen = document.getElementById("patientDetailsScreen");
-    detailsScreen.style.display = "";
+    document.getElementById("patientDetailsScreen").style.display = "";
 }
 
-function submitPatientDetails(e) {
+
+function setWho(mode) {
+    proxyMode = (mode === "proxy");
+    document.getElementById("pdWhoMyself").classList.toggle("active", !proxyMode);
+    document.getElementById("pdWhoProxy").classList.toggle("active", proxyMode);
+    const proxyFields = document.getElementById("pdProxyFields");
+    if (proxyFields) proxyFields.style.display = proxyMode ? "" : "none";
+    ["pd-proxy-first", "pd-proxy-last", "pd-relationship"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.required = proxyMode;
+    });
+}
+
+async function submitPatientDetails(e) {
     e.preventDefault();
     const form = document.getElementById("patientDetailsForm");
     const data = new FormData(form);
+
+    const firstName  = (data.get("first_name") || "").trim();
+    const lastName   = (data.get("last_name") || "").trim();
+    const dob        = data.get("dob") || "";
+    const phone      = (data.get("phone") || "").trim();
+    const nhsNumber  = (data.get("nhs_number") || "").trim();
+    const postcode   = (data.get("postcode") || "").trim();
+    const fullName   = `${firstName} ${lastName}`.trim();
+
+    // Save to registered_patients DB
+    try {
+        await fetch("/patient/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ first_name: firstName, last_name: lastName, dob, phone, nhs_number: nhsNumber, postcode }),
+        });
+    } catch (err) { /* non-blocking */ }
+
+    // Try to match / create session
+    const payload = { first_name: firstName, last_name: lastName, dob, phone, nhs_number: nhsNumber, postcode };
+    try {
+        await fetch("/patient/match", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+    } catch (err) { /* non-blocking */ }
+
+    const proxyFirst    = (data.get("proxy_first_name") || "").trim();
+    const proxyLast     = (data.get("proxy_last_name")  || "").trim();
+    const relationship  = (data.get("relationship")     || "").trim();
+
     patientDetails = {
-        name: data.get("name"),
-        dob: data.get("dob"),
-        insurance_provider: data.get("insurance_provider"),
-        insurance_level: data.get("insurance_level"),
-        identifier: data.get("identifier"),
+        name: fullName, first_name: firstName, last_name: lastName,
+        dob, phone, nhs_number: nhsNumber, postcode, practice: "",
+        proxy_first_name: proxyFirst, proxy_last_name: proxyLast, relationship,
+        is_proxy: proxyMode,
     };
+
+    // Save proxy info to session via match endpoint
+    if (proxyMode && proxyFirst) {
+        try {
+            await fetch("/patient/set_proxy", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ proxy_first_name: proxyFirst, proxy_last_name: proxyLast, relationship }),
+            });
+        } catch (err) { /* non-blocking */ }
+    }
+
+    _proceedToChat(fullName, dob, phone || "—", nhsNumber || "—", postcode || "—", "—", proxyMode);
+}
+
+function _proceedToChat(name, dob, phone, nhs, postcode, practice, isProxy) {
+    document.getElementById("phName").textContent     = name || "—";
+    document.getElementById("phDob").textContent      = formatDob(dob);
+    document.getElementById("phPhone").textContent    = phone || "—";
+    document.getElementById("phNhs").textContent      = nhs || "—";
+    document.getElementById("phPostcode").textContent = postcode || "—";
+    document.getElementById("phPractice").textContent = practice || "—";
+    const badge = document.getElementById("phProxyBadge");
+    if (badge) badge.style.display = isProxy ? "inline-block" : "none";
+
+    // Show header bar, hide registration screen, show chat
+    document.getElementById("patientHeaderBar").style.display = "grid";
     document.getElementById("patientDetailsScreen").style.display = "none";
-    document.getElementById("redFlagScreen").style.display = "";
+    document.getElementById("landingScreen").style.display = "none";
+    chatMessages.style.display = "flex";
+
+    // Restore sidebar
+    const sidebar = document.querySelector(".sidebar");
+    if (sidebar) sidebar.style.display = "";
+
+    startFlow();
+}
+
+function formatDob(dob) {
+    if (!dob) return "—";
+    if (dob.includes("-")) {
+        const parts = dob.split("-");
+        if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dob;
 }
 
 // ===== Init =====
 document.addEventListener("DOMContentLoaded", () => {
     setupInputHandlers();
+
+    // Hide chat input bar by default — only shown for free-text nodes
+    document.getElementById("chatInputArea").style.display = "none";
+
     getStartedBtn.addEventListener("click", showPatientDetailsForm);
     const detailsForm = document.getElementById("patientDetailsForm");
     if (detailsForm) detailsForm.addEventListener("submit", submitPatientDetails);
-    const continueBtn = document.getElementById("redFlagContinueBtn");
-    if (continueBtn) continueBtn.addEventListener("click", () => {
-        document.getElementById("redFlagScreen").style.display = "none";
-        chatMessages.style.display = "";
-        startFlow();
-    });
+
 });
 
 function setupInputHandlers() {
@@ -86,11 +173,17 @@ async function startFlow() {
 }
 
 // ===== Render a flow node =====
-function renderFlowNode(node) {
+function renderFlowNode(node, skipHistory = false) {
     if (!node) return;
+
+    // Save current node to history before moving forward
+    if (!skipHistory && currentNodeId && currentNodeId !== node.node_id && currentNodeData) {
+        nodeHistory.push(currentNodeData);
+    }
 
     currentNodeId   = node.node_id;
     currentNodeType = node.type;
+    currentNodeData = node;
     isAiMode        = (node.type === "ai" || node.type === "question");
 
     // Show message
@@ -100,11 +193,13 @@ function renderFlowNode(node) {
 
     // Update sidebar label
     const labelMap = {
-        "options": "Please choose an option",
-        "form":    "Please fill in the form",
-        "ai":      "AI Assistant",
-        "question":"Please answer",
-        "end":     "Complete",
+        "options":          "Please choose an option",
+        "customFormNode":   "Please fill in the form",
+        "form":             "Please fill in the form",
+        "inputNode":        "Type your response",
+        "ai":               "AI Assistant",
+        "question":         "Please answer",
+        "end":              "Complete",
     };
     updateContextLabel(labelMap[node.type] || "Navigation");
 
@@ -119,6 +214,14 @@ function renderFlowNode(node) {
         return;
     }
 
+    // Custom form node (demo flow forms)
+    if (node.type === "customFormNode" && node.fields && node.fields.length > 0) {
+        showFormPanel(node.fields, node.node_id, {}, node.label || "");
+        setInputEnabled(false);
+        scrollToPanel();
+        return;
+    }
+
     if (node.type === "form") {
         showFormPanel(node.fields, node.node_id, {}, node.form_title || "");
         setInputEnabled(false);
@@ -126,11 +229,43 @@ function renderFlowNode(node) {
         return;
     }
 
+    // Input node — show text input at bottom, no button panel
+    if (node.type === "inputNode") {
+        currentNodeType = "inputNode";
+        clearButtonGrid();
+        buttonPanel.style.display = "none";
+        document.getElementById("chatInputArea").style.display = "";
+        chatInput.placeholder = node.placeholder || "Type your response...";
+        setInputEnabled(true);
+        chatInput.focus();
+        scrollToBottom();
+        return;
+    }
+
     if (node.type === "options") {
         previousOptionsState = { options: node.options };
-        showOptionButtons(node.options);
+        showInlineOptions(node.options);
         setInputEnabled(false);
-        buttonPanelLabel.textContent = "Please select an option:";
+        scrollToBottom();
+        return;
+    }
+
+    // Pharmacy referral — message + options
+    if (node.type === "pharmacy_referral") {
+        if (node.options && node.options.length > 0) {
+            previousOptionsState = { options: node.options };
+            showInlineOptions(node.options);
+            setInputEnabled(false);
+        }
+        scrollToBottom();
+        return;
+    }
+
+    // Pharmacy finder — trigger nearby search
+    if (node.type === "pharmacy_finder") {
+        showNearbyPharmacies();
+        showEndButtons();
+        setInputEnabled(false);
         scrollToPanel();
         return;
     }
@@ -145,8 +280,80 @@ function renderFlowNode(node) {
         return;
     }
 
+    // message node with options (symptom results)
+    if (node.type === "message" && node.options && node.options.length > 0) {
+        previousOptionsState = { options: node.options };
+        showInlineOptions(node.options);
+        setInputEnabled(false);
+        scrollToBottom();
+        return;
+    }
+
+    // Auto-advance message node (either has auto_advance flag or has next_id and no options)
+    if (node.type === "message" && node.next_id && (!node.options || node.options.length === 0)) {
+        setTimeout(() => advanceFromMessage(node), 800);
+        return;
+    }
+
     // Fallback
     setInputEnabled(true);
+}
+
+async function advanceFromMessage(node) {
+    try {
+        const res = await fetch("/flow/step", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ node_id: node.node_id, option_handle: "" }),
+        });
+        const data = await res.json();
+        renderFlowNode(data);
+    } catch (err) { /* ignore */ }
+}
+
+// ===== Inline options (rendered inside chat messages) =====
+function showInlineOptions(options) {
+    clearButtonGrid();
+    buttonPanel.style.display = "none";
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "inline-options-wrapper";
+
+    options.forEach(opt => {
+        if (!opt.label) return;
+        const btn = document.createElement("button");
+        btn.className = "inline-option-btn" + (opt.id === "opt_back" || opt.label.toLowerCase().includes("back") ? " inline-option-back" : "");
+        btn.textContent = opt.label;
+
+        if (opt.url) {
+            btn.addEventListener("click", () => window.open(opt.url, "_blank"));
+        } else if (opt.label.toLowerCase().includes("back") && opt.label.toLowerCase().includes("main")) {
+            btn.addEventListener("click", goBack);
+        } else {
+            btn.addEventListener("click", () => {
+                // Remove the options wrapper after selection
+                wrapper.remove();
+                handleOptionClick(opt.id, opt.label);
+            });
+        }
+        wrapper.appendChild(btn);
+    });
+
+    // Only show Back button if NOT on main menu
+    if (currentNodeId !== "main_menu") {
+        const backBtn = document.createElement("button");
+        backBtn.className = "inline-option-btn inline-option-back";
+        backBtn.textContent = "← Back";
+        backBtn.addEventListener("click", () => { wrapper.remove(); goBack(); });
+        wrapper.appendChild(backBtn);
+    }
+
+    chatMessages.appendChild(wrapper);
+    scrollToBottom();
+}
+
+function scrollToBottom() {
+    chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
 // ===== Option Buttons =====
@@ -221,27 +428,33 @@ function showOptionButtons(options) {
 function addBackButtonToGrid() {
     const btn = document.createElement("button");
     btn.className = "menu-btn back-btn";
-    btn.textContent = "← Back to Main Menu";
-    btn.addEventListener("click", returnToLanding);
+    btn.textContent = "← Back";
+    btn.addEventListener("click", goBack);
     buttonGrid.appendChild(btn);
 }
 
 function showBackButton() {
-    buttonPanel.style.display = "";
-    buttonGrid.innerHTML = "";
-    addBackButtonToGrid();
-    buttonPanelLabel.textContent = "";
+    const wrapper = document.createElement("div");
+    wrapper.className = "inline-options-wrapper";
+    const btn = document.createElement("button");
+    btn.className = "inline-option-btn inline-option-back";
+    btn.textContent = "← Back";
+    btn.addEventListener("click", () => { wrapper.remove(); goBack(); });
+    wrapper.appendChild(btn);
+    chatMessages.appendChild(wrapper);
+    scrollToBottom();
 }
 
 function showEndButtons() {
-    buttonPanel.style.display = "";
-    buttonGrid.innerHTML = "";
+    const wrapper = document.createElement("div");
+    wrapper.className = "inline-options-wrapper";
     const btn = document.createElement("button");
-    btn.className = "menu-btn back-btn";
-    btn.textContent = "← Back to Main Menu";
-    btn.addEventListener("click", returnToLanding);
-    buttonGrid.appendChild(btn);
-    buttonPanelLabel.textContent = "What would you like to do next?";
+    btn.className = "inline-option-btn";
+    btn.textContent = "← Return to Main Menu";
+    btn.addEventListener("click", () => { wrapper.remove(); goBack(); });
+    wrapper.appendChild(btn);
+    chatMessages.appendChild(wrapper);
+    scrollToBottom();
 }
 
 function clearButtonGrid() {
@@ -283,9 +496,32 @@ function sendUserMessage() {
 
     if (isAiMode) {
         streamAiResponse(text);
+    } else if (currentNodeType === "inputNode") {
+        handleInputNodeSubmit(text);
     } else {
-        // Advance flow with free text (question node)
         handleFlowTextInput(text);
+    }
+}
+
+async function handleInputNodeSubmit(text) {
+    appendUserMessage(text);
+    setInputEnabled(false);
+    clearButtonGrid();
+    appendTypingIndicator();
+
+    try {
+        const res = await fetch("/flow/step", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ node_id: currentNodeId, option_handle: "", user_input: text }),
+        });
+        const data = await res.json();
+        removeTypingIndicator();
+        renderFlowNode(data);
+    } catch (err) {
+        removeTypingIndicator();
+        appendAssistantMessage("Sorry, something went wrong. Please try again.");
+        showBackButton();
     }
 }
 
@@ -298,7 +534,7 @@ async function handleFlowTextInput(text) {
         const res = await fetch("/flow/step", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ node_id: currentNodeId, option_handle: "" }),
+            body: JSON.stringify({ node_id: currentNodeId, option_handle: "", user_input: text }),
         });
         const data = await res.json();
         removeTypingIndicator();
@@ -495,17 +731,8 @@ function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
     goBackBtn.className = "form-go-back-btn";
     goBackBtn.textContent = "← Go Back";
     goBackBtn.addEventListener("click", () => {
-        if (formHistory.length > 0) {
-            // Go back to previous form
-            const currentData = captureCurrentFormData(fields);
-            const prev = formHistory.pop();
-            formHistory.push({ fields, nodeId, savedData: currentData, formTitle });
-            showFormPanel(prev.fields, prev.nodeId, prev.savedData || {}, prev.formTitle || "");
-        } else if (previousOptionsState) {
-            // No previous form — restore the options button panel
-            hideFormPanel();
-            showOptionButtons(previousOptionsState.options);
-        }
+        // Always go back to main menu — clears form history too
+        goBack();
     });
     formPanel.appendChild(goBackBtn);
 
@@ -754,9 +981,9 @@ function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
         if (patientDetails) Object.assign(allFormData, {
             patient_name: patientDetails.name || "",
             dob: patientDetails.dob || "",
-            insurance_provider: patientDetails.insurance_provider || "",
-            insurance_level: patientDetails.insurance_level || "",
-            identifier: patientDetails.identifier || "",
+            phone: patientDetails.phone || "",
+            nhs_number: patientDetails.nhs_number || "",
+            postcode: patientDetails.postcode || "",
         });
         if (symptomDescription) allFormData.symptom_description = symptomDescription;
         formHistory.forEach(h => {
@@ -902,28 +1129,60 @@ function hideFormPanel() {
         formPanel.style.display = "none";
         formPanel.innerHTML = "";
     }
-    document.getElementById("chatInputArea").style.display = "";
+    // Only show input bar for inputNode type — keep hidden otherwise
+    if (currentNodeType !== "inputNode") {
+        document.getElementById("chatInputArea").style.display = "none";
+    }
+}
+
+// ===== Back navigation =====
+async function goBack() {
+    formHistory = [];
+    previousOptionsState = null;
+    hideFormPanel();
+    clearButtonGrid();
+    chatMessages.innerHTML = "";
+    document.getElementById("chatInputArea").style.display = "none";
+
+    // Go back one step if history exists, otherwise go to main menu
+    const prevNode = nodeHistory.pop();
+    if (prevNode && prevNode.node_id && prevNode.node_id !== "start") {
+        currentNodeData = null; // prevent re-pushing to history
+        renderFlowNode(prevNode, true);
+    } else {
+        nodeHistory = [];
+        try {
+            const res = await fetch("/flow/start");
+            const data = await res.json();
+            renderFlowNode(data, true);
+        } catch (err) { /* ignore */ }
+    }
 }
 
 // ===== Reset =====
 function resetToMainMenu() {
     currentNodeId        = null;
     currentNodeType      = null;
+    nodeHistory          = [];
     isAiMode             = false;
     aiHistory            = [];
     isStreaming          = false;
     formHistory          = [];
     previousOptionsState = null;
 
-    // Clear chat and panels
     chatMessages.innerHTML = "";
     hideFormPanel();
     clearButtonGrid();
 
-    // Hide landing, show chat and restart flow
-    if (landingScreen) landingScreen.style.display = "none";
-    chatMessages.style.display = "";
-    startFlow();
+    // If patient already registered, just restart the flow
+    if (patientDetails && patientDetails.name) {
+        chatMessages.style.display = "";
+        startFlow();
+    } else {
+        if (landingScreen) landingScreen.style.display = "";
+        chatMessages.style.display = "none";
+        showPatientDetailsForm();
+    }
 }
 
 function returnToLanding() {
@@ -1048,8 +1307,8 @@ function renderMarkdown(el, text) {
             continue;
         }
 
-        // List items
-        const listMatch = line.match(/^[-*]\s+(.*)/);
+        // List items (-, *, or • bullet characters)
+        const listMatch = line.match(/^[-*•]\s+(.*)/);
         if (listMatch) {
             if (!inList) { html += "<ul>"; inList = true; }
             html += `<li>${inlineFormat(listMatch[1])}</li>`;

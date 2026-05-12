@@ -1,0 +1,122 @@
+[
+  {
+    "condition": "Urinary Tract Infection",
+    "keywords": ["uti", "urinary tract infection", "cystitis", "burning urine", "painful urination", "frequent urination", "bladder infection", "burning when peeing", "blood in urine"],
+    "nhs_url": "https://www.nhs.uk/conditions/urinary-tract-infections-utis/",
+    "pharmacy_advice": "A pharmacist can supply antibiotics for uncomplicated UTIs in women aged 16–64 under the NHS Pharmacy First scheme."
+  },
+  {
+    "condition": "Earache",
+    "keywords": ["earache", "ear pain", "ear infection", "otitis", "sore ear", "pain in ear", "blocked ear with pain", "ear hurts"],
+    "nhs_url": "https://www.nhs.uk/conditions/earache/",
+    "pharmacy_advice": "A pharmacist can assess and treat earache including acute otitis media in children aged 1–17 under Pharmacy First."
+  },
+  {
+    "condition": "Sore Throat",
+    "keywords": ["sore throat", "throat infection", "tonsillitis", "strep throat", "painful swallowing", "throat pain", "difficulty swallowing"],
+    "nhs_url": "https://www.nhs.uk/conditions/sore-throat/",
+    "pharmacy_advice": "A pharmacist can assess sore throats and provide treatment including antibiotics where clinically appropriate under Pharmacy First."
+  },
+  {
+    "condition": "Sinusitis",
+    "keywords": ["sinusitis", "sinus infection", "sinus pain", "blocked sinuses", "facial pain", "nasal congestion with pain", "sinus pressure"],
+    "nhs_url": "https://www.nhs.uk/conditions/sinusitis/",
+    "pharmacy_advice": "A pharmacist can advise on and treat acute sinusitis, including prescribing antibiotics if needed under Pharmacy First."
+  },
+  {
+    "condition": "Impetigo",
+    "keywords": ["impetigo", "skin infection", "crusty sores", "blisters on skin", "infected skin rash", "honey-coloured crust"],
+    "nhs_url": "https://www.nhs.uk/conditions/impetigo/",
+    "pharmacy_advice": "A pharmacist can prescribe antibiotic cream or tablets for impetigo under the NHS Pharmacy First scheme."
+  },
+  {
+    "condition": "Infected Insect Bite",
+    "keywords": ["infected bite", "insect bite", "bug bite", "bee sting", "wasp sting", "swollen bite", "red bite", "infected sting"],
+    "nhs_url": "https://www.nhs.uk/conditions/insect-bites-and-stings/",
+    "pharmacy_advice": "A pharmacist can treat infected insect bites and stings and prescribe antibiotics if there are signs of infection under Pharmacy First."
+  },
+  {
+    "condition": "Shingles",
+    "keywords": ["shingles", "herpes zoster", "painful rash", "blistering rash", "nerve pain with rash", "burning rash on one side"],
+    "nhs_url": "https://www.nhs.uk/conditions/shingles/",
+    "pharmacy_advice": "A pharmacist can prescribe antiviral treatment for shingles under Pharmacy First, most effective when started within 72 hours."
+  },
+  {
+    "condition": "Conjunctivitis",
+    "keywords": ["conjunctivitis", "pink eye", "red eye", "eye infection", "sticky eye", "itchy eye", "discharge from eye", "watery eyes"],
+    "nhs_url": "https://www.nhs.uk/conditions/conjunctivitis/",
+    "pharmacy_advice": "A pharmacist can advise on and provide antibiotic eye drops for bacterial conjunctivitis without a GP appointment."
+  },
+  {
+    "condition": "Hayfever",
+    "keywords": ["hayfever", "hay fever", "allergic rhinitis", "pollen allergy", "sneezing", "runny nose", "itchy eyes allergy", "seasonal allergy"],
+    "nhs_url": "https://www.nhs.uk/conditions/hay-fever/",
+    "pharmacy_advice": "A pharmacist can recommend antihistamines, nasal sprays, and eye drops to relieve hayfever symptoms."
+  },
+  {
+    "condition": "Head Lice",
+    "keywords": ["head lice", "nits", "lice", "itchy scalp", "bugs in hair", "lice eggs"],
+    "nhs_url": "https://www.nhs.uk/conditions/head-lice-and-nits/",
+    "pharmacy_advice": "A pharmacist can recommend the most effective treatments including medicated lotions and wet combing kits."
+  },
+  {
+    "condition": "Athlete's Foot",
+    "keywords": ["athletes foot", "athlete's foot", "fungal foot", "itchy feet", "foot fungus", "cracked feet", "peeling feet", "tinea pedis"],
+    "nhs_url": "https://www.nhs.uk/conditions/athletes-foot/",
+    "pharmacy_advice": "A pharmacist can recommend antifungal creams, sprays, or powders to treat athlete's foot."
+  },
+  {
+    "condition": "Cold Sores",
+    "keywords": ["cold sore", "cold sores", "lip blister", "herpes labialis", "fever blister", "sore on lip", "tingling lip"],
+    "nhs_url": "https://www.nhs.uk/conditions/cold-sores/",
+    "pharmacy_advice": "A pharmacist can recommend antiviral creams such as aciclovir to shorten the duration of cold sores."
+  },
+  {
+    "condition": "Threadworms",
+    "keywords": ["threadworms", "worms", "pinworms", "itchy bottom", "worms in stool", "itchy anus", "worms in children"],
+    "nhs_url": "https://www.nhs.uk/conditions/threadworms/",
+    "pharmacy_advice": "A pharmacist can provide mebendazole tablets to treat threadworm infections for all household members."
+  },
+  {
+    "condition": "Vaginal Thrush",
+    "keywords": ["thrush", "vaginal thrush", "yeast infection", "candida", "itchy vagina", "vaginal discharge", "white discharge", "vaginal irritation"],
+    "nhs_url": "https://www.nhs.uk/conditions/thrush-in-women-and-men/",
+    "pharmacy_advice": "A pharmacist can supply antifungal treatments including pessaries and creams for vaginal thrush without a prescription."
+  },
+  {
+    "condition": "Haemorrhoids",
+    "keywords": ["haemorrhoids", "hemorrhoids", "piles", "bleeding bottom", "itchy bottom", "rectal pain", "anal pain", "blood when wiping"],
+    "nhs_url": "https://www.nhs.uk/conditions/haemorrhoids-piles/",
+    "pharmacy_advice": "A pharmacist can recommend creams, suppositories, and lifestyle advice to relieve haemorrhoid symptoms."
+  },
+  {
+    "condition": "Indigestion",
+    "keywords": ["indigestion", "heartburn", "acid reflux", "stomach pain after eating", "bloating", "burping", "dyspepsia", "stomach acid"],
+    "nhs_url": "https://www.nhs.uk/conditions/indigestion/",
+    "pharmacy_advice": "A pharmacist can recommend antacids, alginates, or H2 blockers to relieve indigestion symptoms."
+  },
+  {
+    "condition": "Constipation",
+    "keywords": ["constipation", "difficulty passing stool", "hard stools", "not going to toilet", "straining to poo", "bloating constipation"],
+    "nhs_url": "https://www.nhs.uk/conditions/constipation/",
+    "pharmacy_advice": "A pharmacist can recommend laxatives and dietary advice to relieve constipation."
+  },
+  {
+    "condition": "Diarrhoea",
+    "keywords": ["diarrhoea", "diarrhea", "loose stools", "runny poo", "stomach bug", "gastroenteritis", "frequent bowel movements"],
+    "nhs_url": "https://www.nhs.uk/conditions/diarrhoea-and-vomiting/",
+    "pharmacy_advice": "A pharmacist can recommend oral rehydration salts and anti-diarrhoeal medicines to manage symptoms."
+  },
+  {
+    "condition": "Eczema",
+    "keywords": ["eczema", "dermatitis", "itchy skin", "dry skin", "inflamed skin", "skin rash", "red itchy patches", "atopic eczema"],
+    "nhs_url": "https://www.nhs.uk/conditions/eczema-atopic/",
+    "pharmacy_advice": "A pharmacist can recommend emollients, mild hydrocortisone cream, and lifestyle advice for mild eczema."
+  },
+  {
+    "condition": "Acne",
+    "keywords": ["acne", "spots", "pimples", "blackheads", "whiteheads", "acne vulgaris", "breakout", "zits", "facial spots"],
+    "nhs_url": "https://www.nhs.uk/conditions/acne/",
+    "pharmacy_advice": "A pharmacist can recommend over-the-counter treatments such as benzoyl peroxide gels and skincare routines for mild to moderate acne."
+  }
+]

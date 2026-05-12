@@ -53,6 +53,15 @@
                 </svg>
                 Main Menu
             </button>
+            {% if staff_authenticated %}
+            <a href="{{ url_for('inbox') }}" class="sidebar-btn" style="text-decoration:none;display:flex;align-items:center;gap:8px;">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M1 3h12v8a1 1 0 01-1 1H2a1 1 0 01-1-1V3z" stroke="currentColor" stroke-width="1.2"/>
+                    <path d="M1 3l6 5 6-5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Staff Inbox
+            </a>
+            {% endif %}
         </div>
     </aside>
 
@@ -62,9 +71,10 @@
         <!-- Landing Screen -->
         <div class="landing-screen" id="landingScreen">
             <div class="landing-logo">
-                <img src="{{ url_for('static', filename='images/health_access_logo.png') }}" alt="Logo" />
+                <img src="{{ url_for('static', filename='images/linein-logo.png') }}" alt="LineIn Logo" style="max-height:80px;object-fit:contain;" />
             </div>
-            <h1 class="landing-heading">How can I help?</h1>
+            <h1 class="landing-heading">How can we help you today?</h1>
+            <p style="color:#6b7280;font-size:14px;margin-bottom:24px;text-align:center;">Your GP practice digital assistant</p>
             <button class="landing-btn" id="getStartedBtn">Get started</button>
         </div>
 
@@ -72,34 +82,71 @@
         <div class="patient-details-screen" id="patientDetailsScreen" style="display:none;">
             <div class="patient-details-card">
                 <h2 class="patient-details-title">Your Details</h2>
-                <p class="patient-details-subtitle">Please fill in your information before we get started.</p>
+                <p class="patient-details-subtitle">Please fill in your information to get started.</p>
                 <form id="patientDetailsForm" autocomplete="off">
-                    <div class="pd-field">
-                        <label for="pd-name">Full Name</label>
-                        <input type="text" id="pd-name" name="name" placeholder="e.g. Jane Smith" required />
+
+                    <!-- Who toggle -->
+                    <div class="pd-who-toggle">
+                        <button type="button" class="pd-who-btn active" id="pdWhoMyself" onclick="setWho('myself')">Myself</button>
+                        <button type="button" class="pd-who-btn" id="pdWhoProxy" onclick="setWho('proxy')">Someone else (Proxy)</button>
+                    </div>
+
+                    <!-- Patient fields -->
+                    <div class="pd-field-row">
+                        <div class="pd-field">
+                            <label for="pd-first-name">First Name *</label>
+                            <input type="text" id="pd-first-name" name="first_name" placeholder="First name" required />
+                        </div>
+                        <div class="pd-field">
+                            <label for="pd-last-name">Last Name *</label>
+                            <input type="text" id="pd-last-name" name="last_name" placeholder="Last name" required />
+                        </div>
                     </div>
                     <div class="pd-field">
-                        <label for="pd-dob">Date of Birth</label>
+                        <label for="pd-dob">Date of Birth *</label>
                         <input type="date" id="pd-dob" name="dob" required />
                     </div>
                     <div class="pd-field">
-                        <label for="pd-insurance-provider">Insurance Provider</label>
-                        <input type="text" id="pd-insurance-provider" name="insurance_provider" placeholder="e.g. Bupa, AXA Health" required />
+                        <label for="pd-phone">Phone Number *</label>
+                        <input type="tel" id="pd-phone" name="phone" placeholder="e.g. 07700 900000" required />
                     </div>
                     <div class="pd-field">
-                        <label for="pd-insurance-level">Level of Insurance</label>
-                        <select id="pd-insurance-level" name="insurance_level" required>
-                            <option value="" disabled selected>Select level</option>
-                            <option value="Basic">Basic</option>
-                            <option value="Standard">Standard</option>
-                            <option value="Enhanced">Enhanced</option>
-                            <option value="Premium">Premium</option>
-                        </select>
+                        <label for="pd-nhs">NHS Number <span class="pd-optional">(optional)</span></label>
+                        <input type="text" id="pd-nhs" name="nhs_number" placeholder="10-digit NHS number" inputmode="numeric" maxlength="10" />
                     </div>
                     <div class="pd-field">
-                        <label for="pd-identifier">Identifier</label>
-                        <input type="text" id="pd-identifier" name="identifier" placeholder="e.g. membership or policy number" required />
+                        <label for="pd-postcode">Postcode *</label>
+                        <input type="text" id="pd-postcode" name="postcode" placeholder="e.g. SW1A 1AA" required />
                     </div>
+
+                    <!-- Proxy fields (hidden by default) -->
+                    <div id="pdProxyFields" style="display:none;">
+                        <div class="pd-proxy-divider">Proxy / Caller Details</div>
+                        <div class="pd-field-row">
+                            <div class="pd-field">
+                                <label for="pd-proxy-first">Your First Name *</label>
+                                <input type="text" id="pd-proxy-first" name="proxy_first_name" placeholder="First name" />
+                            </div>
+                            <div class="pd-field">
+                                <label for="pd-proxy-last">Your Last Name *</label>
+                                <input type="text" id="pd-proxy-last" name="proxy_last_name" placeholder="Last name" />
+                            </div>
+                        </div>
+                        <div class="pd-field">
+                            <label for="pd-relationship">Relationship to Patient *</label>
+                            <select id="pd-relationship" name="relationship">
+                                <option value="" disabled selected>Select relationship</option>
+                                <option value="Parent">Parent</option>
+                                <option value="Guardian">Guardian</option>
+                                <option value="Carer">Carer</option>
+                                <option value="Spouse/Partner">Spouse/Partner</option>
+                                <option value="Child">Child</option>
+                                <option value="Sibling">Sibling</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <button type="submit" class="pd-submit-btn">Continue</button>
                 </form>
             </div>
@@ -148,6 +195,21 @@
                         </svg>
                     </button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Patient Header Bar (shown after registration) -->
+        <div class="patient-header-bar" id="patientHeaderBar" style="display:none;">
+            <div class="ph-name-block">
+                <span class="ph-name" id="phName">—</span>
+                <span class="ph-proxy-badge" id="phProxyBadge" style="display:none;">Proxy</span>
+            </div>
+            <div class="ph-details">
+                <div class="ph-detail-item"><span class="ph-label">DOB</span><span class="ph-value" id="phDob">—</span></div>
+                <div class="ph-detail-item"><span class="ph-label">Phone</span><span class="ph-value" id="phPhone">—</span></div>
+                <div class="ph-detail-item"><span class="ph-label">NHS</span><span class="ph-value" id="phNhs">—</span></div>
+                <div class="ph-detail-item"><span class="ph-label">Postcode</span><span class="ph-value" id="phPostcode">—</span></div>
+                <div class="ph-detail-item"><span class="ph-label">Registered Practice</span><span class="ph-value" id="phPractice">—</span></div>
             </div>
         </div>
 
@@ -250,7 +312,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+<script src="{{ url_for('static', filename='js/chat.js') }}?v=12"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function() {
         const trigger = document.getElementById("nonUrgentTrigger");

@@ -369,16 +369,16 @@
         </div>
         <div class="inbox-nav-body" id="inboxNavBody">
             <div data-section-group="your_inbox">
-                <a href="{{ url_for('inbox') }}" class="nav-item {% if not request.args.get('team') and request.args.get('status','Open') == 'Open' %}active{% endif %}">
+                <a href="{{ url_for('inbox') }}?view=mine&status=Active" class="nav-item {% if request.args.get('view') == 'mine' and request.args.get('status') != 'Closed' %}active{% endif %}">
                     <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M2 7h3l1.5 2h3L11 7h3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
                     <span class="nav-item-label">Your Inbox</span>
                     {% if nav_counts.your_inbox %}<span class="nav-count">{{ nav_counts.your_inbox }}</span>{% endif %}
                 </a>
             </div>
             <div data-section-group="all">
-                <a href="{{ url_for('inbox') }}?status=All" class="nav-item {% if request.args.get('status') == 'All' and not request.args.get('team') %}active{% endif %}">
+                <a href="{{ url_for('inbox') }}?status=Active" class="nav-item {% if (filters.status == 'Active' or not request.args.get('status')) and not request.args.get('team') and not request.args.get('view') %}active{% endif %}">
                     <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>
-                    <span class="nav-item-label">All</span>
+                    <span class="nav-item-label">All Active</span>
                     {% if nav_counts.all %}<span class="nav-count">{{ nav_counts.all }}</span>{% endif %}
                 </a>
             </div>
@@ -396,13 +396,10 @@
                 </a>
             </div>
             <div data-section-group="teams">
-                <div class="nav-section-label">
-                    Teams
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="cursor:pointer;opacity:0.5;"><circle cx="8" cy="3" r="1.2" fill="currentColor"/><circle cx="8" cy="8" r="1.2" fill="currentColor"/><circle cx="8" cy="13" r="1.2" fill="currentColor"/></svg>
-                </div>
+                <div class="nav-section-label">Inboxes</div>
                 {% for team in teams %}
-                <a href="{{ url_for('inbox') }}?team={{ team | urlencode }}" class="nav-item {% if request.args.get('team') == team %}active{% endif %}">
-                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="5" r="2.5" stroke="currentColor" stroke-width="1.3"/><circle cx="10.5" cy="5" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M1 13c0-2.5 2-3.5 4.5-3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M15 13c0-2.5-2-3.5-4.5-3.5s-4.5 1-4.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                <a href="{{ url_for('inbox') }}?team={{ team | urlencode }}&status=Active" class="nav-item {% if request.args.get('team') == team and filters.status != 'Closed' %}active{% endif %}">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M2 7h3l1.5 2h3L11 7h3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
                     <span class="nav-item-label" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ team }}</span>
                     {% set tc = nav_counts.teams.get(team, 0) %}
                     {% if tc %}<span class="nav-count">{{ tc }}</span>{% endif %}
@@ -411,14 +408,24 @@
             </div>
             <div data-section-group="teammates">
                 <div class="nav-section-label">Teammates</div>
-                <a href="{{ url_for('inbox') }}" class="nav-item">
+                {% for username in staff_users %}
+                <a href="{{ url_for('inbox') }}?view=mine&status=All&user={{ username }}"
+                   class="nav-item {% if request.args.get('user') == username %}active{% endif %}">
                     <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2 13c0-3 2.5-4.5 6-4.5s6 1.5 6 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-                    <span class="nav-item-label">Staff</span>
+                    <span class="nav-item-label">{{ username | capitalize }}</span>
+                    {% if nav_counts.teammates.get(username) %}
+                    <span class="nav-count">{{ nav_counts.teammates[username] }}</span>
+                    {% endif %}
                 </a>
+                {% endfor %}
             </div>
-            <div data-section-group="views">
-                <div class="nav-section-label">Views</div>
-                <div class="nav-views-hint">Create custom views to save filter combinations</div>
+            <div data-section-group="archive">
+                <div class="nav-section-label">Archive</div>
+                <a href="{{ url_for('inbox') }}?status=Closed" class="nav-item {% if filters.status == 'Closed' %}active{% endif %}">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="5" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M2 5l2-3h8l2 3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6 9h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                    <span class="nav-item-label">Closed Tickets</span>
+                    {% if nav_counts.closed %}<span class="nav-count" style="background:#f3f4f6;color:#6b7280;">{{ nav_counts.closed }}</span>{% endif %}
+                </a>
             </div>
         </div>
         <div class="inbox-nav-footer">
@@ -434,15 +441,15 @@
     <section class="ticket-list-panel">
         <div class="ticket-list-header">
             <form method="GET" action="{{ url_for('inbox') }}" id="filter-form">
+                {% if filters.view %}<input type="hidden" name="view" value="{{ filters.view }}">{% endif %}
                 <div class="ticket-list-toprow">
                     <span class="ticket-count-label">{{ tickets | length }} ticket{{ 's' if tickets | length != 1 }}</span>
                     <select name="status" class="filter-select" onchange="document.getElementById('filter-form').submit()">
-                        <option value="Open"        {% if filters.status == 'Open'        %}selected{% endif %}>Open</option>
+                        <option value="Active" {% if filters.status == 'Active' or not filters.status %}selected{% endif %}>Active</option>
+                        <option value="Open"   {% if filters.status == 'Open'   %}selected{% endif %}>Open only</option>
                         <option value="In Progress" {% if filters.status == 'In Progress' %}selected{% endif %}>In Progress</option>
-                        <option value="Waiting"     {% if filters.status == 'Waiting'     %}selected{% endif %}>Waiting</option>
-                        <option value="Resolved"    {% if filters.status == 'Resolved'    %}selected{% endif %}>Resolved</option>
-                        <option value="Closed"      {% if filters.status == 'Closed'      %}selected{% endif %}>Closed</option>
-                        <option value="All"         {% if filters.status == 'All'         %}selected{% endif %}>All</option>
+                        <option value="Closed" {% if filters.status == 'Closed' %}selected{% endif %}>Closed</option>
+                        <option value="All"    {% if filters.status == 'All'    %}selected{% endif %}>All</option>
                     </select>
                     <select name="sort" class="filter-select" onchange="document.getElementById('filter-form').submit()">
                         <option value="newest" {% if filters.sort == 'newest' %}selected{% endif %}>Newest</option>
@@ -474,11 +481,15 @@
                     <div class="ticket-avatar" style="background-color: {{ t.avatar_color }};">{{ initials }}</div>
                     <div class="ticket-item-body">
                         <div class="ticket-item-top">
-                            <span class="ticket-item-name">{{ t.display_name }}</span>
+                            <span class="ticket-item-name" style="font-weight:700;">{{ t.display_name }}</span>
                             <span class="ticket-item-time">{{ t.time_ago }}</span>
                         </div>
+                        <div style="font-size:11px;color:#6b7280;margin-bottom:2px;">
+                            {% if t.dob %}<span>DOB: {{ t.dob }}</span> &nbsp;{% endif %}
+                            {% if t.case_number %}<span style="font-family:monospace;color:#4b5563;">{{ t.case_number }}</span>{% endif %}
+                        </div>
                         <div class="ticket-item-meta">
-                            <span class="ticket-item-cat">{{ t.category or '—' }}</span>
+                            <span class="ticket-item-cat">{{ t.inbox or t.category or '—' }}</span>
                             <span class="badge badge-{{ (t.priority or 'medium') | lower }}">{{ t.priority or 'Medium' }}</span>
                         </div>
                     </div>
@@ -539,12 +550,12 @@ function debounceSearch(form) {
 // ── Inbox Settings ──
 const SETTINGS_SECTIONS = [
     { key: 'your_inbox',  label: 'Your Inbox' },
-    { key: 'all',         label: 'All' },
+    { key: 'all',         label: 'All Active' },
     { key: 'unassigned',  label: 'Unassigned' },
     { key: 'dashboard',   label: 'Dashboard' },
-    { key: 'teams',       label: 'Teams' },
+    { key: 'teams',       label: 'Inboxes' },
     { key: 'teammates',   label: 'Teammates' },
-    { key: 'views',       label: 'Views' },
+    { key: 'archive',     label: 'Archive' },
 ];
 const DEFAULT_ORDER = SETTINGS_SECTIONS.map(s => s.key);
 

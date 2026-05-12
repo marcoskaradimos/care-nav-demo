@@ -14,6 +14,8 @@ from google.genai import types as genai_types
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
+import demo_flow as df
+
 app = Flask(__name__)
 
 # ── Database ─────────────────────────────────────────────────────────────────
@@ -40,26 +42,37 @@ def init_db():
     db.execute("""
         CREATE TABLE IF NOT EXISTS tickets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            case_number TEXT,
             patient_name TEXT,
             nhs_number TEXT,
             dob TEXT,
             phone TEXT,
             postcode TEXT,
+            gp_practice TEXT DEFAULT '',
             title TEXT,
             category TEXT,
+            inbox TEXT DEFAULT 'Unassigned',
             form_data TEXT,
             status TEXT DEFAULT 'Open',
             priority TEXT DEFAULT 'Medium',
             assigned_to TEXT DEFAULT '',
+            closed_by TEXT DEFAULT '',
             is_read INTEGER DEFAULT 0,
             created_at TEXT,
-            updated_at TEXT
+            updated_at TEXT,
+            closed_at TEXT
         )
     """)
     # Add columns if they don't exist (for existing databases)
     for col, definition in [
-        ("assigned_to", "TEXT DEFAULT ''"),
-        ("is_read", "INTEGER DEFAULT 0"),
+        ("assigned_to",  "TEXT DEFAULT ''"),
+        ("is_read",      "INTEGER DEFAULT 0"),
+        ("case_number",  "TEXT"),
+        ("inbox",        "TEXT DEFAULT 'Unassigned'"),
+        ("gp_practice",  "TEXT DEFAULT ''"),
+        ("match_status", "TEXT DEFAULT 'unverified'"),
+        ("closed_by",    "TEXT DEFAULT ''"),
+        ("closed_at",    "TEXT"),
     ]:
         try:
             db.execute(f"ALTER TABLE tickets ADD COLUMN {col} {definition}")
@@ -72,6 +85,18 @@ def init_db():
             author TEXT,
             content TEXT,
             created_at TEXT
+        )
+    """)
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS registered_patients (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            first_name TEXT NOT NULL,
+            last_name TEXT NOT NULL,
+            dob TEXT,
+            phone TEXT,
+            nhs_number TEXT,
+            postcode TEXT,
+            registered_at TEXT
         )
     """)
     db.commit()
@@ -95,6 +120,29 @@ def infer_category(node_id):
         return "General Enquiry"
     return "General Enquiry"
 
+def generate_case_number():
+    """Generate a unique case number like LN-20260512-0042."""
+    date_part = datetime.utcnow().strftime("%Y%m%d")
+    db = get_db()
+    count = db.execute("SELECT COUNT(*) FROM tickets WHERE case_number LIKE ?", (f"LN-{date_part}-%",)).fetchone()[0]
+    db.close()
+    return f"LN-{date_part}-{count + 1:04d}"
+
+def inbox_for_category(category):
+    mapping = {
+        "Appointments":         "Unassigned",
+        "Nurse Appointment":    "Nurse Appointment",
+        "Doctor Appointment":   "Clinical Triage",
+        "Repeat Medicine":      "Pharmacist",
+        "Medical Certificate":  "Medical Certificate",
+        "Admin Query":          "Admin",
+        "Symptom Query":        "Unassigned",
+        "Blood Test":           "Unassigned",
+        "General Enquiry":      "Unassigned",
+        "Medicine Query":       "Pharmacist",
+    }
+    return mapping.get(category, "Unassigned")
+
 def time_ago(dt_str):
     try:
         dt = datetime.fromisoformat(dt_str)
@@ -116,6 +164,148 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-producti
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
 GOOGLE_PLACES_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "")
 MODEL = "gemini-flash-latest"
+
+# ── Patient List ─────────────────────────────────────────────────────────────
+def load_patients():
+    path = os.path.join(os.path.dirname(__file__), "data", "patients.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def _norm_dob(dob):
+    """Normalise DOB to DD/MM/YYYY regardless of input format."""
+    if not dob:
+        return ""
+    dob = dob.strip()
+    if "-" in dob:
+        parts = dob.split("-")
+        if len(parts) == 3:
+            return f"{parts[2]}/{parts[1]}/{parts[0]}"
+    return dob
+
+
+def _fuzzy(a, b):
+    """Return similarity ratio 0.0–1.0 between two strings."""
+    from difflib import SequenceMatcher
+    if not a or not b:
+        return 0.0
+    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+
+def _score_candidate(fn, ln, dob_norm, pc, nhs, pfn, pln, pdob, ppc, pnhs):
+    """
+    Score a candidate record against submitted details.
+    Uses fuzzy name matching + exact DOB/NHS/postcode.
+    Max possible score ~15.
+    """
+    score = 0.0
+
+    # NHS number — strongest single identifier (exact only)
+    if nhs and pnhs and nhs == pnhs:
+        score += 5.0
+
+    # DOB — high value, exact match only (typos in DOB are rare)
+    if dob_norm and pdob and dob_norm == pdob:
+        score += 3.0
+
+    # First name — fuzzy (handles typos, nicknames, abbreviations)
+    fn_sim = _fuzzy(fn, pfn)
+    if fn_sim == 1.0:
+        score += 3.0          # exact
+    elif fn_sim >= 0.8:
+        score += 2.0          # close (e.g. "Jon" vs "John")
+    elif fn_sim >= 0.6:
+        score += 1.0          # partial (e.g. "Marc" vs "Marcos")
+
+    # Last name — fuzzy
+    ln_sim = _fuzzy(ln, pln)
+    if ln_sim == 1.0:
+        score += 3.0
+    elif ln_sim >= 0.8:
+        score += 2.0
+    elif ln_sim >= 0.6:
+        score += 1.0
+
+    # Postcode — fuzzy with sector fallback (e.g. "W11 3BU" vs "W11 3BD")
+    if pc and ppc:
+        pc_sim = _fuzzy(pc, ppc)
+        if pc_sim == 1.0:
+            score += 2.0
+        elif pc_sim >= 0.75:
+            score += 1.0      # same sector, different unit
+        elif pc[:4] == ppc[:4]:
+            score += 0.5      # same district
+
+    return score
+
+
+def match_patient(first_name, last_name, dob, postcode, nhs_number=""):
+    """
+    Fuzzy-match submitted details against patients.json and registered_patients DB.
+    Returns (patient, confidence) where confidence is 'matched', 'partial', or None.
+    Thresholds: matched >= 7.0 | partial >= 3.5
+    """
+    fn       = first_name.strip().lower()
+    ln       = last_name.strip().lower()
+    dob_norm = _norm_dob(dob)
+    pc       = postcode.strip().upper().replace(" ", "")
+    nhs      = nhs_number.strip().replace(" ", "")
+
+    best       = None
+    best_score = 0.0
+    best_source = None  # 'json' or 'db'
+
+    # ── Search patients.json ─────────────────────────────────────────────────
+    for p in load_patients():
+        pfn  = p["first_name"].strip().lower()
+        pln  = p["last_name"].strip().lower()
+        pdob = p["date_of_birth"].strip()
+        ppc  = p["postcode"].strip().upper().replace(" ", "")
+        pnhs = p["nhs_number"].strip().replace(" ", "")
+
+        score = _score_candidate(fn, ln, dob_norm, pc, nhs, pfn, pln, pdob, ppc, pnhs)
+        if score > best_score:
+            best_score  = score
+            best        = p
+            best_source = "json"
+
+    # ── Search registered_patients DB ────────────────────────────────────────
+    try:
+        db   = get_db()
+        rows = db.execute("SELECT * FROM registered_patients").fetchall()
+        db.close()
+        for p in rows:
+            p    = dict(p)
+            pfn  = (p.get("first_name") or "").strip().lower()
+            pln  = (p.get("last_name")  or "").strip().lower()
+            pdob = _norm_dob(p.get("dob", ""))
+            ppc  = (p.get("postcode") or "").strip().upper().replace(" ", "")
+            pnhs = (p.get("nhs_number") or "").strip().replace(" ", "")
+
+            score = _score_candidate(fn, ln, dob_norm, pc, nhs, pfn, pln, pdob, ppc, pnhs)
+            if score > best_score:
+                best_score  = score
+                best_source = "db"
+                best = {
+                    "id":            f"reg_{p['id']}",
+                    "first_name":    p["first_name"],
+                    "last_name":     p["last_name"],
+                    "date_of_birth": pdob,
+                    "nhs_number":    p.get("nhs_number", ""),
+                    "telephone":     p.get("phone", ""),
+                    "postcode":      p.get("postcode", ""),
+                    "gp_practice":   "",
+                }
+    except Exception:
+        pass
+
+    if best_score >= 7.0:
+        return best, "matched"
+    elif best_score >= 3.5:
+        return best, "partial"
+    return None, None
 
 # ── HTML Stripper ────────────────────────────────────────────────────────────
 class _MLStripper(HTMLParser):
@@ -437,6 +627,9 @@ def build_node_response(node_id):
         # For testing: restrict main menu to Book an appointment only
         if current_id == "main_menu_options":
             options = [o for o in options if o["id"] == "opt_appointments"]
+        # For testing: restrict conditions list to UTI only
+        if current_id == "optionsNode-1764439981132":
+            options = [o for o in options if o["id"] == "opt-1-1764439981132"]
         return {
             "node_id": current_id,
             "type": "options",
@@ -560,8 +753,10 @@ def build_node_response(node_id):
 # ── Auth ─────────────────────────────────────────────────────────────────────
 # Staff users for inbox access
 STAFF_USERS = {
-    "staff": generate_password_hash("staff123"),
-    "admin": generate_password_hash("admin123"),
+    "admin":    generate_password_hash("admin123"),
+    "marcos":   generate_password_hash("marcos123"),
+    "drjones":  generate_password_hash("jones123"),
+    "flemming": generate_password_hash("flemming123"),
 }
 
 def staff_required(f):
@@ -601,146 +796,558 @@ def staff_logout():
 def index():
     return render_template("index.html")
 
+@app.route("/patient/match", methods=["POST"])
+def patient_match():
+    data = request.get_json() or {}
+    first_name  = data.get("first_name", "")
+    last_name   = data.get("last_name", "")
+    dob         = data.get("dob", "")
+    postcode    = data.get("postcode", "")
+    nhs_number  = data.get("nhs_number", "")
+    phone       = data.get("phone", "")
+
+    patient, confidence = match_patient(first_name, last_name, dob, postcode, nhs_number)
+
+    # Normalise DOB to DD/MM/YYYY for storage and display
+    dob_display = dob
+    if dob and "-" in dob:
+        parts = dob.split("-")
+        if len(parts) == 3:
+            dob_display = f"{parts[2]}/{parts[1]}/{parts[0]}"
+
+    # Store submitted + matched details in session
+    session["patient_first_name"] = first_name
+    session["patient_last_name"]  = last_name
+    session["patient_dob"]        = dob_display
+    session["patient_phone"]      = phone
+    session["patient_postcode"]   = postcode
+    session["patient_nhs"]        = nhs_number
+
+    if patient and confidence == "matched":
+        session["matched_patient_id"] = patient["id"]
+        session["patient_name"]       = f"{patient['first_name']} {patient['last_name']}"
+        session["patient_nhs"]        = patient["nhs_number"]
+        session["patient_phone"]      = patient.get("telephone", phone)
+        session["patient_postcode"]   = patient.get("postcode", postcode)
+        session["patient_practice"]   = patient.get("gp_practice", "")
+        return jsonify({
+            "status": "matched",
+            "patient": {
+                "name":     f"{patient['first_name']} {patient['last_name']}",
+                "nhs":      patient["nhs_number"],
+                "dob":      patient["date_of_birth"],
+                "phone":    patient.get("telephone", phone),
+                "postcode": patient.get("postcode", postcode),
+                "practice": patient.get("gp_practice", ""),
+            }
+        })
+    elif patient and confidence == "partial":
+        session["matched_patient_id"] = None
+        session["patient_name"]       = f"{first_name} {last_name}"
+        session["patient_practice"]   = ""
+        return jsonify({
+            "status": "partial",
+            "patient": {
+                "name":     f"{first_name} {last_name}",
+                "nhs":      nhs_number or "Not provided",
+                "dob":      dob_display,
+                "phone":    phone,
+                "postcode": postcode,
+                "practice": "Not found — manual check required",
+            }
+        })
+    else:
+        session["matched_patient_id"] = None
+        session["patient_name"]       = f"{first_name} {last_name}"
+        session["patient_practice"]   = ""
+        return jsonify({
+            "status": "unmatched",
+            "patient": {
+                "name":     f"{first_name} {last_name}",
+                "nhs":      nhs_number or "Not provided",
+                "dob":      dob,
+                "phone":    phone,
+                "postcode": postcode,
+                "practice": "Not registered — new patient",
+            }
+        })
+
+
+@app.route("/patient/set_proxy", methods=["POST"])
+def patient_set_proxy():
+    data = request.get_json() or {}
+    session["proxy_first_name"] = data.get("proxy_first_name", "")
+    session["proxy_last_name"]  = data.get("proxy_last_name", "")
+    session["proxy_relationship"] = data.get("relationship", "")
+    return jsonify({"status": "ok"})
+
+
+@app.route("/patient/register", methods=["POST"])
+def patient_register():
+    """Save a new patient to the local registered_patients DB."""
+    data = request.get_json() or {}
+    first_name  = data.get("first_name", "").strip()
+    last_name   = data.get("last_name", "").strip()
+    dob         = data.get("dob", "").strip()
+    phone       = data.get("phone", "").strip()
+    nhs_number  = data.get("nhs_number", "").strip()
+    postcode    = data.get("postcode", "").strip()
+    if not first_name or not last_name:
+        return jsonify({"error": "First and last name required"}), 400
+    now = datetime.utcnow().isoformat()
+    db = get_db()
+    db.execute(
+        """INSERT INTO registered_patients (first_name, last_name, dob, phone, nhs_number, postcode, registered_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (first_name, last_name, dob, phone, nhs_number, postcode, now)
+    )
+    db.commit()
+    db.close()
+    return jsonify({"status": "registered"})
+
+
+@app.route("/patient/search")
+def patient_search():
+    """Search patients by name, NHS number or DOB across patients.json and registered_patients."""
+    q = request.args.get("q", "").strip().lower()
+    if not q or len(q) < 2:
+        return jsonify({"results": []})
+
+    results = []
+
+    # Search registered_patients DB
+    try:
+        db = get_db()
+        rows = db.execute(
+            """SELECT * FROM registered_patients
+               WHERE lower(first_name) LIKE ? OR lower(last_name) LIKE ?
+                  OR lower(first_name || ' ' || last_name) LIKE ?
+                  OR nhs_number LIKE ? OR dob LIKE ?""",
+            (f"%{q}%", f"%{q}%", f"%{q}%", f"%{q}%", f"%{q}%")
+        ).fetchall()
+        db.close()
+        for r in rows:
+            r = dict(r)
+            results.append({
+                "id": f"reg_{r['id']}",
+                "name": f"{r['first_name']} {r['last_name']}",
+                "first_name": r["first_name"], "last_name": r["last_name"],
+                "dob": r.get("dob", ""), "phone": r.get("phone", ""),
+                "nhs": r.get("nhs_number", "") or "—",
+                "postcode": r.get("postcode", ""),
+                "practice": "",
+                "source": "registered",
+            })
+    except Exception:
+        pass
+
+    # Search patients.json
+    try:
+        patients = load_patients()
+        for p in patients:
+            full = f"{p['first_name']} {p['last_name']}".lower()
+            if (q in full or q in (p.get("nhs_number") or "").lower()
+                    or q in (p.get("date_of_birth") or "").lower()):
+                results.append({
+                    "id": p["id"],
+                    "name": f"{p['first_name']} {p['last_name']}",
+                    "first_name": p["first_name"], "last_name": p["last_name"],
+                    "dob": p.get("date_of_birth", ""),
+                    "phone": p.get("telephone", ""),
+                    "nhs": p.get("nhs_number", "") or "—",
+                    "postcode": p.get("postcode", ""),
+                    "practice": p.get("gp_practice", ""),
+                    "source": "patients_json",
+                })
+    except Exception:
+        pass
+
+    return jsonify({"results": results[:10]})
+
+
+@app.route("/flow/node/<node_id>")
+def flow_node(node_id):
+    """Return any demo flow node by ID directly (used for back navigation)."""
+    node = df.get_node(node_id)
+    if not node:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify(_demo_node_response(node))
+
+
 @app.route("/flow/start")
 def flow_start():
-    """Return the initial flow state (start node)."""
-    result = build_node_response("start")
-    return jsonify(result)
+    session.pop("demo_node_id", None)
+    session.pop("demo_form_data", None)
+    session.pop("demo_symptom", None)
+    node = df.get_node("start")
+    return jsonify(_demo_node_response(node))
 
 @app.route("/flow/step", methods=["POST"])
 def flow_step():
-    """
-    Advance the flow.
-    Body: { node_id, option_handle }  (option_handle = the option id selected)
-    Returns the next node response.
-    """
-    data = request.get_json()
-    node_id = data.get("node_id")
-    option_handle = data.get("option_handle", "")
-    form_data = data.get("form_data", {})
+    data        = request.get_json()
+    node_id     = data.get("node_id")
+    option_id   = data.get("option_handle", "")
+    form_data   = data.get("form_data", {})
     all_form_data = data.get("all_form_data", {})
+    user_input  = data.get("user_input", "")
 
-    node = get_node(node_id)
-    if not node:
-        return jsonify({"error": "Node not found"}), 404
+    # ── Accumulate form data in session ──────────────────────────────────────
+    stored = session.get("demo_form_data", {})
+    stored.update(form_data)
+    stored.update(all_form_data)
+    if user_input:
+        stored["_last_input"] = user_input
+    session["demo_form_data"] = stored
 
-    # Find next node
-    if option_handle:
-        next_id = follow_edge(node_id, option_handle)
-        if not next_id:
-            # Try matching by option id in options list then follow first edge with that handle
-            next_id = follow_edge(node_id, option_handle)
-        if not next_id:
-            # Fallback: first edge
-            next_id = follow_edge(node_id)
-    else:
-        next_id = follow_edge(node_id)
+    # ── Resolve next node ─────────────────────────────────────────────────────
+    next_id = None
+
+    # Option selection routing
+    if option_id:
+        next_id = df.next_node_for_option(node_id, option_id)
+
+    # Input node → next_id stored on node
+    if not next_id and node_id in df.NODES:
+        node_def = df.NODES[node_id]
+        next_id = node_def.get("next_id")
+
+    # ── Special: doctor symptom check before contact form ────────────────────
+    if node_id == "doctor_input":
+        symptom = user_input or stored.get("_last_input", "")
+        session["demo_symptom"] = symptom
+        # Check pharmacy referrals first
+        match = _check_pharmacy_referral(symptom)
+        if match:
+            node = dict(df.NODES["pharmacy_referral_result"])
+            node["message"] = (
+                f"Good news — **{match['condition']}** can often be treated by a local pharmacist "
+                f"without needing a GP appointment.\n\n"
+                f"{match['pharmacy_advice']}\n\n"
+                f"[View NHS guidance]({match['nhs_url']})"
+            )
+            return jsonify(_demo_node_response(node))
+        # No pharmacy referral — show quick AI summary then options
+        summary = _quick_symptom_summary(symptom)
+        return jsonify({
+            "node_id": "doctor_ai_summary",
+            "type":    "message",
+            "message": summary,
+            "options": [
+                {"id": "opt_book_doctor",  "label": "Book an appointment"},
+                {"id": "opt_self_care_dr", "label": "Self-care advice"},
+            ],
+            "fields":  [],
+            "next_id": None,
+        })
+
+    # ── Special: symptom search ───────────────────────────────────────────────
+    if node_id == "symptom_search_input":
+        symptom = user_input or stored.get("_last_input", "")
+        session["demo_symptom"] = symptom
+        # AI summary only — clean, no NHS links cluttering the bubble
+        summary = _quick_symptom_summary(symptom)
+        msg_text = summary
+        return jsonify({
+            "node_id": "symptom_search_results",
+            "type":    "message",
+            "message": msg_text,
+            "options": df.NODES["symptom_after_results"]["options"],
+            "fields":  [],
+            "next_id": "symptom_after_results",
+        })
+
+    # ── Route from AI summary options ────────────────────────────────────────
+    if node_id == "doctor_ai_summary":
+        if option_id == "opt_book_doctor":
+            next_id = "doctor_symptom_form"
+        elif option_id == "opt_self_care_dr":
+            symptom = session.get("demo_symptom", "your symptoms")
+            advice = _self_care_advice(symptom)
+            return jsonify({
+                "node_id": "self_care_result",
+                "type":    "end",
+                "message": advice,
+                "options": [],
+                "fields":  [],
+                "is_end":  True,
+            })
+
+    # ── Route from symptom search self-care ───────────────────────────────────
+    if node_id == "symptom_search_results" and option_id in ("opt_self_care", "opt_self_care_dr"):
+        symptom = session.get("demo_symptom", "your symptoms")
+        advice = _self_care_advice(symptom)
+        return jsonify({
+            "node_id": "self_care_result",
+            "type":    "end",
+            "message": advice,
+            "options": [],
+            "fields":  [],
+            "is_end":  True,
+        })
+    if node_id == "symptom_search_results" and option_id == "opt_book_from_symptom":
+        next_id = "doctor_symptom_form"
+
+    # ── Special: pharmacy finder after pharmacy referral accept ──────────────
+    if next_id == "pharmacy_finder" or option_id == "opt_pharmacy_accept":
+        return jsonify({
+            "node_id":  "pharmacy_finder",
+            "type":     "pharmacy_finder",
+            "message":  "Finding your nearest pharmacy...",
+            "options":  [],
+            "fields":   [],
+            "is_end":   True,
+        })
+
+    # ── Create ticket on confirmation nodes ───────────────────────────────────
+    if node_id in df.CONFIRMATION_INBOXES or next_id in df.CONFIRMATION_INBOXES:
+        confirm_id = node_id if node_id in df.CONFIRMATION_INBOXES else next_id
+        _create_demo_ticket(confirm_id, stored)
 
     if not next_id:
-        return jsonify({"node_id": node_id, "type": "end", "message": "Thank you for using our service.", "options": [], "fields": [], "is_end": True})
+        return jsonify({"node_id": node_id, "type": "end",
+                        "message": "Thank you for using our service.",
+                        "options": [], "fields": [], "is_end": True})
 
-    # ── Create ticket if this is a patient details form submission ────────────
-    # Clinician consultation request — create ticket from accumulated all_form_data
-    if node_id == "appt_contact_time" and all_form_data:
-        try:
-            patient_name = all_form_data.get("patient_name", "Unknown")
-            now = datetime.utcnow().isoformat()
-            symptoms = all_form_data.get("symptom_description", "")
-            available_time = all_form_data.get("available_time", "")
-            contact_number = all_form_data.get("contact_number", "")
-            title = f"Clinician Consultation – {symptoms[:60]}{'...' if len(symptoms) > 60 else ''}" if symptoms else "Clinician Consultation Request"
+    node = df.get_node(next_id)
+    if not node:
+        return jsonify({"node_id": next_id, "type": "end",
+                        "message": "Thank you for using our service.",
+                        "options": [], "fields": [], "is_end": True})
 
-            # ── Suggested priority from pain score + patient-reported urgency ──
-            def suggested_priority(data):
-                urgency = data.get("patient_urgency", "").lower()
-                pain_raw = data.get("experiencing_pain", "").lower()
-                # Extract pain score if present
-                pain_score = 0
-                if "pain score:" in pain_raw:
-                    try:
-                        pain_score = int(pain_raw.split("pain score:")[-1].strip().split("/")[0].strip())
-                    except Exception:
-                        pain_score = 0
+    return jsonify(_demo_node_response(node))
 
-                if "emergency" in urgency or pain_score >= 9:
-                    return "Urgent"
-                if "very urgent" in urgency or pain_score >= 7:
-                    return "High"
-                if "fairly urgent" in urgency or pain_score >= 4:
-                    return "Medium"
-                return "Low"
 
-            priority = suggested_priority(all_form_data)
+def _demo_node_response(node):
+    """Normalise a demo flow node for the frontend."""
+    n = dict(node)
+    # Auto-advance message nodes after rendering
+    if n.get("type") == "message" and n.get("next_id") and not n.get("options"):
+        n["auto_advance"] = True
+    return n
 
-            db = get_db()
-            db.execute(
-                """INSERT INTO tickets
-                   (patient_name, nhs_number, dob, phone, postcode, title, category, form_data, status, priority, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Open', ?, ?, ?)""",
-                (
-                    patient_name,
-                    all_form_data.get("identifier", ""),
-                    all_form_data.get("dob", ""),
-                    contact_number,
-                    "",
-                    title,
-                    "Appointments",
-                    json.dumps(all_form_data),
-                    priority,
-                    now,
-                    now,
-                )
+
+def _quick_symptom_summary(symptom):
+    """Call Gemini for a simplified differential diagnosis."""
+    try:
+        client = genai.Client(api_key=GOOGLE_API_KEY)
+        prompt = (
+            f"Patient symptom: {symptom}\n\n"
+            f"List the 3 most likely causes. For each write one line: "
+            f"'- [Condition name]: [one sentence explanation]'\n"
+            f"Then write: 'See a GP if: [2-3 red flag symptoms in one sentence]'\n"
+            f"Be brief. Plain English. No extra text."
+        )
+        response = client.models.generate_content(
+            model=MODEL,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(max_output_tokens=1024)
+        )
+        return response.text.strip()
+    except Exception:
+        return "Thanks for describing your symptoms. A member of our team will review your request and be in touch to confirm your booking."
+
+
+def _self_care_advice(symptom):
+    """Call Gemini for concise self-care advice for a given symptom."""
+    try:
+        client = genai.Client(api_key=GOOGLE_API_KEY)
+        prompt = (
+            f"Patient symptom: {symptom}\n\n"
+            f"Give 4 self-care tips, one per line, each starting with '- '.\n"
+            f"Keep each tip to one short sentence.\n"
+            f"End with: 'See a GP if: [when to seek help]'\n"
+            f"Plain English. No headers. No extra text."
+        )
+        response = client.models.generate_content(
+            model=MODEL,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(max_output_tokens=1024)
+        )
+        return response.text.strip()
+    except Exception:
+        return "Please rest and stay hydrated. If symptoms worsen or do not improve within 48 hours, contact us to book an appointment."
+
+
+def _check_pharmacy_referral(symptom):
+    """Return matching pharmacy referral entry or None."""
+    path = os.path.join(os.path.dirname(__file__), "data", "pharmacy_referrals.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            referrals = json.load(f)
+        symptom_lower = symptom.lower()
+        for r in referrals:
+            for kw in r.get("keywords", []):
+                if kw.lower() in symptom_lower or symptom_lower in kw.lower():
+                    return r
+    except Exception:
+        pass
+    return None
+
+
+NHS_CONDITIONS = [
+    ("back pain",        ["back pain", "back ache", "backache", "lower back", "upper back", "spine pain"], "https://www.nhs.uk/conditions/back-pain/"),
+    ("headache",         ["headache", "head pain", "migraine", "tension headache", "head ache"], "https://www.nhs.uk/conditions/headaches/"),
+    ("chest pain",       ["chest pain", "chest tightness", "chest pressure", "chest discomfort"], "https://www.nhs.uk/conditions/chest-pain/"),
+    ("cough",            ["cough", "coughing", "persistent cough", "dry cough", "wet cough", "chesty cough"], "https://www.nhs.uk/conditions/cough/"),
+    ("cold",             ["cold", "common cold", "runny nose", "blocked nose", "sneezing", "stuffy nose"], "https://www.nhs.uk/conditions/common-cold/"),
+    ("fever",            ["fever", "high temperature", "temperature", "pyrexia", "sweating", "chills"], "https://www.nhs.uk/conditions/fever-in-adults/"),
+    ("fatigue",          ["fatigue", "tiredness", "exhaustion", "low energy", "feeling tired", "lethargy"], "https://www.nhs.uk/conditions/tiredness-and-fatigue/"),
+    ("anxiety",          ["anxiety", "anxious", "panic attack", "panic", "worry", "stress"], "https://www.nhs.uk/conditions/generalised-anxiety-disorder/"),
+    ("depression",       ["depression", "depressed", "low mood", "feeling low", "sadness"], "https://www.nhs.uk/conditions/clinical-depression/"),
+    ("knee pain",        ["knee pain", "knee ache", "sore knee", "knee swelling", "knee injury"], "https://www.nhs.uk/conditions/knee-pain/"),
+    ("shoulder pain",    ["shoulder pain", "shoulder ache", "sore shoulder", "frozen shoulder"], "https://www.nhs.uk/conditions/shoulder-pain/"),
+    ("stomach ache",     ["stomach ache", "stomach pain", "abdominal pain", "tummy ache", "belly pain"], "https://www.nhs.uk/conditions/stomach-ache/"),
+    ("nausea",           ["nausea", "nauseous", "feeling sick", "vomiting", "vomit", "being sick"], "https://www.nhs.uk/conditions/feeling-sick-nausea/"),
+    ("insomnia",         ["insomnia", "sleep problems", "cant sleep", "difficulty sleeping", "sleep disorder"], "https://www.nhs.uk/conditions/insomnia/"),
+    ("diabetes",         ["diabetes", "high blood sugar", "blood sugar", "diabetic"], "https://www.nhs.uk/conditions/diabetes/"),
+    ("high blood pressure", ["high blood pressure", "hypertension", "blood pressure"], "https://www.nhs.uk/conditions/high-blood-pressure-hypertension/"),
+    ("asthma",           ["asthma", "wheeze", "wheezing", "shortness of breath", "breathing difficulty", "breathless"], "https://www.nhs.uk/conditions/asthma/"),
+    ("dizziness",        ["dizziness", "dizzy", "vertigo", "lightheaded", "light headed", "spinning"], "https://www.nhs.uk/conditions/dizziness/"),
+    ("rash",             ["rash", "skin rash", "hives", "red rash", "itchy rash", "bumps on skin"], "https://www.nhs.uk/conditions/rashes-in-babies-and-children/"),
+    ("toothache",        ["toothache", "tooth pain", "tooth ache", "dental pain", "sore tooth", "gum pain"], "https://www.nhs.uk/conditions/toothache/"),
+    ("neck pain",        ["neck pain", "neck ache", "stiff neck", "sore neck"], "https://www.nhs.uk/conditions/neck-pain-and-stiff-neck/"),
+    ("ankle pain",       ["ankle pain", "sprained ankle", "twisted ankle", "ankle swelling"], "https://www.nhs.uk/conditions/sprains-and-strains/"),
+    ("sciatica",         ["sciatica", "sciatic nerve", "leg pain from back", "shooting leg pain"], "https://www.nhs.uk/conditions/sciatica/"),
+    ("chest infection",  ["chest infection", "bronchitis", "lower respiratory", "phlegm", "mucus cough"], "https://www.nhs.uk/conditions/chest-infection/"),
+    ("flu",              ["flu", "influenza", "flu symptoms", "body aches and fever"], "https://www.nhs.uk/conditions/flu/"),
+]
+
+def _search_nhs_conditions(symptom):
+    """Search pharmacy referrals + NHS conditions list for relevant links."""
+    path = os.path.join(os.path.dirname(__file__), "data", "pharmacy_referrals.json")
+    results = []
+    symptom_lower = symptom.lower()
+    seen = set()
+
+    # Search pharmacy referrals first
+    try:
+        with open(path, encoding="utf-8") as f:
+            referrals = json.load(f)
+        for r in referrals:
+            keywords = [k.lower() for k in r.get("keywords", [])]
+            if any(symptom_lower in k or k in symptom_lower for k in keywords):
+                url = r["nhs_url"]
+                if url not in seen:
+                    results.append({"name": r["condition"], "url": url})
+                    seen.add(url)
+    except Exception:
+        pass
+
+    # Search broader NHS conditions list
+    for condition_name, keywords, url in NHS_CONDITIONS:
+        if url in seen:
+            continue
+        if any(symptom_lower in k or k in symptom_lower for k in keywords):
+            results.append({"name": condition_name.title(), "url": url})
+            seen.add(url)
+
+    # Fallback general NHS search
+    if not results:
+        results.append({
+            "name": f"Search NHS A–Z for '{symptom}'",
+            "url":  f"https://www.nhs.uk/search/results?q={symptom.replace(' ', '+')}"
+        })
+
+    return results[:5]
+
+
+def _create_demo_ticket(confirm_node_id, form_data):
+    """Create a ticket from accumulated demo flow form data, matching patient from DB."""
+    try:
+        category, inbox = df.CONFIRMATION_INBOXES.get(confirm_node_id, ("General", "Unassigned"))
+        now      = datetime.utcnow().isoformat()
+        case_num = generate_case_number()
+
+        # ── Patient resolution ───────────────────────────────────────────────
+        # Priority: session matched record > form fields > fallback
+        sess_name     = session.get("patient_name", "")
+        sess_nhs      = session.get("patient_nhs", "")
+        sess_dob      = session.get("patient_dob", "")
+        sess_phone    = session.get("patient_phone", "")
+        sess_postcode = session.get("patient_postcode", "")
+        sess_practice = session.get("patient_practice", "")
+
+        # Fall back to form fields if session values are missing
+        first = (session.get("patient_first_name") or form_data.get("first_name", "")).strip()
+        last  = (session.get("patient_last_name")  or form_data.get("last_name",  "")).strip()
+        patient_name = sess_name or f"{first} {last}".strip() or "Unknown"
+        nhs_number   = sess_nhs      or form_data.get("nhs_number", "")
+        dob          = sess_dob      or form_data.get("dob", "")
+        phone        = sess_phone    or form_data.get("phone", "")
+        postcode     = sess_postcode or form_data.get("postcode", "")
+        gp_practice  = sess_practice
+
+        # Try a fresh patient match if we don't already have a verified record
+        match_status = "unverified"
+        if session.get("matched_patient_id"):
+            match_status = "verified"
+        else:
+            matched, confidence = match_patient(first, last, dob, postcode, nhs_number)
+            if matched and confidence == "matched":
+                match_status  = "verified"
+                patient_name  = f"{matched['first_name']} {matched['last_name']}"
+                nhs_number    = matched.get("nhs_number", nhs_number)
+                dob           = matched.get("date_of_birth", dob)
+                phone         = matched.get("telephone", phone)
+                postcode      = matched.get("postcode", postcode)
+                gp_practice   = matched.get("gp_practice", gp_practice)
+
+        # ── Build title ──────────────────────────────────────────────────────
+        symptom    = session.get("demo_symptom", "")
+        query      = form_data.get("query_details", "")
+        cert       = form_data.get("cert_type", "")
+        med        = form_data.get("medication_name", "")
+        nurse_appt = form_data.get("_last_input", "")
+
+        if symptom:
+            title = f"{category} – {symptom[:60]}"
+        elif query:
+            title = f"Admin Query – {query[:60]}"
+        elif cert:
+            title = f"Medical Certificate – {cert}"
+        elif med:
+            title = f"Repeat Prescription – {med[:60]}"
+        elif nurse_appt:
+            title = f"Nurse Appointment – {nurse_appt[:60]}"
+        else:
+            title = category
+
+        # Proxy details
+        proxy_first    = session.get("proxy_first_name", "")
+        proxy_last     = session.get("proxy_last_name", "")
+        proxy_rel      = session.get("proxy_relationship", "")
+        proxy_info     = ""
+        if proxy_first or proxy_last:
+            proxy_info = f"{proxy_first} {proxy_last}".strip()
+            if proxy_rel:
+                proxy_info += f" ({proxy_rel})"
+
+        # Merge proxy into form_data so it shows in ticket detail
+        if proxy_info:
+            form_data["_proxy_caller"] = proxy_info
+
+        db = get_db()
+        db.execute(
+            """INSERT INTO tickets
+               (case_number, patient_name, nhs_number, dob, phone, postcode, gp_practice,
+                match_status, title, category, inbox, form_data, status, priority, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Open', 'Medium', ?, ?)""",
+            (
+                case_num, patient_name, nhs_number, dob, phone, postcode, gp_practice,
+                match_status, title, category, inbox,   # inbox already set from CONFIRMATION_INBOXES
+                json.dumps(form_data), now, now
             )
-            db.commit()
-            db.close()
-        except Exception as e:
-            app.logger.error(f"Clinician ticket creation failed: {e}")
-
-    PATIENT_DETAIL_NODES = {
-        "synthetic_blood_test_patient",
-        "synthetic_patient_details_customFormNode-1764448405115",
-        "synthetic_patient_details_customFormNode-1764440727948",
-        "synthetic_patient_details_cert_request_form",
-        "synthetic_patient_details_general_enquiry_form",
-    }
-    if node_id in PATIENT_DETAIL_NODES and form_data and (
-        form_data.get("first_name") or form_data.get("nhs_number")
-    ):
-        try:
-            first = form_data.get("first_name", "")
-            last = form_data.get("last_name", "")
-            patient_name = f"{first} {last}".strip() or "Unknown"
-            now = datetime.utcnow().isoformat()
-            # Use all_form_data (all forms combined) if available, else fall back to form_data
-            ticket_form_data = all_form_data if all_form_data else form_data
-            db = get_db()
-            db.execute(
-                """INSERT INTO tickets
-                   (patient_name, nhs_number, dob, phone, postcode, title, category, form_data, status, priority, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Open', 'Medium', ?, ?)""",
-                (
-                    patient_name,
-                    form_data.get("nhs_number", ""),
-                    form_data.get("dob", ""),
-                    form_data.get("phone", ""),
-                    form_data.get("postcode", ""),
-                    form_data.get("title", ""),
-                    infer_category(node_id),
-                    json.dumps(ticket_form_data),
-                    now,
-                    now,
-                )
-            )
-            db.commit()
-            db.close()
-        except Exception as e:
-            app.logger.error(f"Ticket creation failed: {e}")
-
-    result = build_node_response(next_id)
-    if not result:
-        return jsonify({"node_id": next_id, "type": "end", "message": "Thank you for using our service.", "options": [], "fields": [], "is_end": True})
-
-    return jsonify(result)
+        )
+        ticket_id_new = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+        # Auto-audit: ticket created
+        db.execute(
+            "INSERT INTO notes (ticket_id, author, content, created_at) VALUES (?, ?, ?, ?)",
+            (ticket_id_new, "system", f"Ticket created · routed to **{inbox}** · match status: **{match_status}**", now)
+        )
+        db.commit()
+        db.close()
+    except Exception as e:
+        app.logger.error(f"Demo ticket creation failed: {e}")
 
 @app.route("/pharmacy/nearby", methods=["POST"])
 def pharmacy_nearby():
@@ -867,52 +1474,79 @@ def flow_ai():
     )
 
 
-TEAMS = ["Clinical Team", "Administration Team", "Appointments", "Pharmacist Team"]
+TEAMS = ["Unassigned", "Nurse Appointment", "Clinical Triage", "Pharmacist", "Admin", "Medical Certificate", "Test Results"]
+INBOXES = TEAMS
 
 def get_nav_counts():
     """Return ticket counts for inbox nav badges."""
     try:
         db = get_db()
         active = "status NOT IN ('Closed','Resolved')"
-        your_inbox = db.execute(f"SELECT COUNT(*) FROM tickets WHERE {active}").fetchone()[0]
-        all_tickets = db.execute("SELECT COUNT(*) FROM tickets").fetchone()[0]
+        current_user = session.get("staff_username", "")
+        your_inbox = db.execute(
+            f"SELECT COUNT(*) FROM tickets WHERE {active} AND assigned_to=?", (current_user,)
+        ).fetchone()[0]
+        all_tickets = db.execute(f"SELECT COUNT(*) FROM tickets WHERE {active}").fetchone()[0]
+        closed_count = db.execute("SELECT COUNT(*) FROM tickets WHERE status='Closed'").fetchone()[0]
         unassigned = db.execute(
             f"SELECT COUNT(*) FROM tickets WHERE {active} AND (assigned_to IS NULL OR assigned_to='')"
         ).fetchone()[0]
         team_counts = {}
         for t in TEAMS:
             c = db.execute(
-                f"SELECT COUNT(*) FROM tickets WHERE {active} AND assigned_to=?", (t,)
+                f"SELECT COUNT(*) FROM tickets WHERE {active} AND inbox=?", (t,)
             ).fetchone()[0]
             team_counts[t] = c
+        # Per-user counts for teammates section
+        teammate_counts = {}
+        for username in STAFF_USERS:
+            c = db.execute(
+                f"SELECT COUNT(*) FROM tickets WHERE {active} AND assigned_to=?", (username,)
+            ).fetchone()[0]
+            teammate_counts[username] = c
         db.close()
-        return {"your_inbox": your_inbox, "all": all_tickets, "unassigned": unassigned, "teams": team_counts}
+        return {"your_inbox": your_inbox, "all": all_tickets, "unassigned": unassigned,
+                "closed": closed_count, "teams": team_counts, "teammates": teammate_counts}
     except Exception:
-        return {"your_inbox": 0, "all": 0, "unassigned": 0, "teams": {}}
+        return {"your_inbox": 0, "all": 0, "unassigned": 0, "closed": 0, "teams": {}, "teammates": {}}
 
 def _build_ticket_list(filters=None):
     """Fetch tickets with optional filtering. Returns list of dicts with extra computed fields."""
     db = get_db()
     status_filter = (filters or {}).get("status", "Open")
-    sort = (filters or {}).get("sort", "newest")
+    sort   = (filters or {}).get("sort", "newest")
     search = (filters or {}).get("search", "").strip()
-    team = (filters or {}).get("team", "")
+    team   = (filters or {}).get("team", "")
+    view   = (filters or {}).get("view", "")
+    user   = (filters or {}).get("user", "")
 
     conditions = []
     params = []
 
-    if status_filter and status_filter != "All":
+    if status_filter == "Active":
+        conditions.append("status NOT IN ('Closed', 'Resolved')")
+    elif status_filter == "Closed":
+        conditions.append("status = 'Closed'")
+    elif status_filter and status_filter != "All":
         conditions.append("status = ?")
         params.append(status_filter)
 
     if search:
-        conditions.append("(patient_name LIKE ? OR CAST(id AS TEXT) LIKE ?)")
-        params.extend([f"%{search}%", f"%{search}%"])
+        conditions.append("(patient_name LIKE ? OR CAST(id AS TEXT) LIKE ? OR case_number LIKE ?)")
+        params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
 
-    if team == "unassigned":
-        conditions.append("(assigned_to IS NULL OR assigned_to = '')")
-    elif team:
+    if user:
+        # Viewing a specific teammate's inbox
         conditions.append("assigned_to = ?")
+        params.append(user)
+    elif view == "mine":
+        current_user = session.get("staff_username", "")
+        conditions.append("assigned_to = ?")
+        params.append(current_user)
+    elif team == "unassigned":
+        conditions.append("(inbox IS NULL OR inbox = '' OR inbox = 'Unassigned')")
+    elif team:
+        conditions.append("inbox = ?")
         params.append(team)
 
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
@@ -940,11 +1574,13 @@ def _build_ticket_list(filters=None):
 @app.route("/inbox")
 @staff_required
 def inbox():
-    status_filter = request.args.get("status", "Open")
-    sort = request.args.get("sort", "newest")
+    status_filter = request.args.get("status", "Active")
+    sort   = request.args.get("sort", "newest")
     search = request.args.get("search", "")
-    team = request.args.get("team", "")
-    filters = {"status": status_filter, "sort": sort, "search": search, "team": team}
+    team   = request.args.get("team", "")
+    view   = request.args.get("view", "")
+    user   = request.args.get("user", "")
+    filters = {"status": status_filter, "sort": sort, "search": search, "team": team, "view": view, "user": user}
     tickets_list = _build_ticket_list(filters)
     return render_template(
         "inbox.html",
@@ -952,6 +1588,7 @@ def inbox():
         selected=None,
         filters=filters,
         teams=TEAMS,
+        staff_users=sorted(STAFF_USERS.keys()),
         nav_counts=get_nav_counts(),
     )
 
@@ -981,7 +1618,7 @@ def ticket_detail(ticket_id):
     db.close()
 
     # Build ticket list using same filters from query params
-    status_filter = request.args.get("status", "Open")
+    status_filter = request.args.get("status", "Active")
     sort = request.args.get("sort", "newest")
     search = request.args.get("search", "")
     team = request.args.get("team", "")
@@ -1014,6 +1651,7 @@ def ticket_detail(ticket_id):
         recent_tickets=recent_list,
         filters=filters,
         teams=TEAMS,
+        staff_users=sorted(STAFF_USERS.keys()),
         nav_counts=get_nav_counts(),
     )
 
@@ -1021,24 +1659,59 @@ def ticket_detail(ticket_id):
 @app.route("/inbox/<int:ticket_id>/update", methods=["POST"])
 @staff_required
 def ticket_update(ticket_id):
-    status = request.form.get("status", "Open")
-    priority = request.form.get("priority", "Medium")
+    status      = request.form.get("status", "Open")
+    priority    = request.form.get("priority", "Medium")
     assigned_to = request.form.get("assigned_to", "")
     assignment_comment = request.form.get("assignment_comment", "").strip()
+    current_user = session.get("staff_username", "")
     now = datetime.utcnow().isoformat()
     db = get_db()
+    inbox_val = request.form.get("inbox", "")
+
+    # Fetch previous state for audit trail
+    prev = db.execute("SELECT status, priority, assigned_to, inbox FROM tickets WHERE id=?", (ticket_id,)).fetchone()
+    prev_status   = prev["status"]   if prev else ""
+    prev_priority = prev["priority"] if prev else ""
+    prev_assigned = prev["assigned_to"] if prev else ""
+    prev_inbox    = prev["inbox"]    if prev else ""
+
+    new_inbox = inbox_val or assigned_to
+
+    # Auto-assign to current user when marking In Progress
+    if status == "In Progress" and not assigned_to:
+        assigned_to = current_user
+
     db.execute(
-        "UPDATE tickets SET status=?, priority=?, assigned_to=?, updated_at=? WHERE id=?",
-        (status, priority, assigned_to, now, ticket_id)
+        "UPDATE tickets SET status=?, priority=?, assigned_to=?, inbox=?, updated_at=? WHERE id=?",
+        (status, priority, assigned_to, new_inbox, now, ticket_id)
     )
-    # Save assignment comment as a note
-    if assignment_comment and assigned_to:
-        author = session.get("staff_username", "Staff")
-        note_content = f"Assigned to **{assigned_to}**: {assignment_comment}"
+
+    # ── Audit log entries ────────────────────────────────────────────────────
+    audit_lines = []
+    if status != prev_status:
+        audit_lines.append(f"Status changed: **{prev_status}** → **{status}**")
+    if priority != prev_priority:
+        audit_lines.append(f"Priority changed: **{prev_priority}** → **{priority}**")
+    if new_inbox and new_inbox != prev_inbox:
+        audit_lines.append(f"Redirected to **{new_inbox}**")
+    if assigned_to and assigned_to != prev_assigned:
+        audit_lines.append(f"Assigned to **{assigned_to}**")
+    elif not assigned_to and prev_assigned:
+        audit_lines.append(f"Unassigned (was **{prev_assigned}**)")
+
+    if assignment_comment:
+        audit_lines.append(f"Note: {assignment_comment}")
+
+    # Always write a note if there's a comment, even if nothing else changed
+    if not audit_lines and assignment_comment:
+        audit_lines.append(f"Note: {assignment_comment}")
+
+    if audit_lines:
         db.execute(
             "INSERT INTO notes (ticket_id, author, content, created_at) VALUES (?, ?, ?, ?)",
-            (ticket_id, author, note_content, now)
+            (ticket_id, current_user, " · ".join(audit_lines), now)
         )
+
     db.commit()
     db.close()
     # Preserve list filters in redirect
@@ -1054,10 +1727,19 @@ def ticket_update(ticket_id):
 @staff_required
 def ticket_close(ticket_id):
     now = datetime.utcnow().isoformat()
+    closed_by = session.get("staff_username", "Staff")
+    close_comment = request.form.get("close_comment", "").strip()
     db = get_db()
     db.execute(
-        "UPDATE tickets SET status='Closed', updated_at=? WHERE id=?",
-        (now, ticket_id)
+        "UPDATE tickets SET status='Closed', closed_by=?, closed_at=?, updated_at=? WHERE id=?",
+        (closed_by, now, now, ticket_id)
+    )
+    note_parts = [f"Ticket closed by **{closed_by}**"]
+    if close_comment:
+        note_parts.append(f"Note: {close_comment}")
+    db.execute(
+        "INSERT INTO notes (ticket_id, author, content, created_at) VALUES (?, ?, ?, ?)",
+        (ticket_id, closed_by, " · ".join(note_parts), now)
     )
     db.commit()
     db.close()
@@ -1222,4 +1904,5 @@ def inject_open_ticket_count():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+    port = int(os.environ.get("PORT", 5001))
+    app.run(debug=True, port=port)

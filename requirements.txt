@@ -3,3 +3,4 @@ flask-login==0.6.3
 google-genai>=1.0.0
 python-dotenv==1.0.1
 werkzeug==3.0.3
+gunicorn==21.2.0

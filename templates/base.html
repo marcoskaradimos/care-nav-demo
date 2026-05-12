@@ -132,8 +132,7 @@
     <nav class="navbar">
         <div class="navbar-inner">
             <div class="navbar-brand">
-                <img src="{{ url_for('static', filename='images/health_access_logo.png') }}" alt="Logo" style="height:42px;width:42px;object-fit:contain;" />
-                <span style="font-size:17px;font-weight:700;color:#fff;letter-spacing:-0.01em;">Health Access</span>
+                <img src="{{ url_for('static', filename='images/linein-logo.png') }}" alt="LineIn Logo" style="height:36px;object-fit:contain;filter:brightness(0) invert(1);" />
             </div>
 
             {% if not staff_authenticated and request.endpoint == 'index' %}

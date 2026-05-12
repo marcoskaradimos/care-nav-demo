@@ -15,8 +15,8 @@
    FAR-LEFT NAV SIDEBAR
 ═══════════════════════════════════════════════ */
 .inbox-nav {
-    width: 200px;
-    min-width: 200px;
+    width: 240px;
+    min-width: 240px;
     background: #fff;
     border-right: 1px solid var(--border);
     display: flex;
@@ -794,7 +794,7 @@
         </div>
         <div class="inbox-nav-body" id="inboxNavBody">
             <div data-section-group="your_inbox">
-                <a href="{{ url_for('inbox') }}" class="nav-item">
+                <a href="{{ url_for('inbox') }}?view=mine&status=All" class="nav-item">
                     <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M2 7h3l1.5 2h3L11 7h3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
                     <span class="nav-item-label">Your Inbox</span>
                     {% if nav_counts.your_inbox %}<span class="nav-count">{{ nav_counts.your_inbox }}</span>{% endif %}
@@ -836,10 +836,16 @@
             </div>
             <div data-section-group="teammates">
                 <div class="nav-section-label">Teammates</div>
-                <a href="{{ url_for('inbox') }}" class="nav-item">
+                {% for username in staff_users %}
+                <a href="{{ url_for('inbox') }}?view=mine&status=All&user={{ username }}"
+                   class="nav-item {% if request.args.get('user') == username %}active{% endif %}">
                     <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2 13c0-3 2.5-4.5 6-4.5s6 1.5 6 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-                    <span class="nav-item-label">Staff</span>
+                    <span class="nav-item-label">{{ username | capitalize }}</span>
+                    {% if nav_counts.teammates.get(username) %}
+                    <span class="nav-count">{{ nav_counts.teammates[username] }}</span>
+                    {% endif %}
                 </a>
+                {% endfor %}
             </div>
             <div data-section-group="views">
                 <div class="nav-section-label">Views</div>
@@ -864,9 +870,6 @@
                     <select name="status" class="filter-select" onchange="document.getElementById('filter-form').submit()">
                         <option value="Open"        {% if filters.status == 'Open'        %}selected{% endif %}>Open</option>
                         <option value="In Progress" {% if filters.status == 'In Progress' %}selected{% endif %}>In Progress</option>
-                        <option value="Waiting"     {% if filters.status == 'Waiting'     %}selected{% endif %}>Waiting</option>
-                        <option value="Resolved"    {% if filters.status == 'Resolved'    %}selected{% endif %}>Resolved</option>
-                        <option value="Closed"      {% if filters.status == 'Closed'      %}selected{% endif %}>Closed</option>
                         <option value="All"         {% if filters.status == 'All'         %}selected{% endif %}>All</option>
                     </select>
                     <select name="sort" class="filter-select" onchange="document.getElementById('filter-form').submit()">
@@ -899,11 +902,15 @@
                     <div class="ticket-avatar" style="background-color: {{ t.avatar_color }};"> {{ initials }}</div>
                     <div class="ticket-item-body">
                         <div class="ticket-item-top">
-                            <span class="ticket-item-name">{{ t.display_name }}</span>
+                            <span class="ticket-item-name" style="font-weight:700;">{{ t.display_name }}</span>
                             <span class="ticket-item-time">{{ t.time_ago }}</span>
                         </div>
+                        <div style="font-size:11px;color:#6b7280;margin-bottom:2px;">
+                            {% if t.dob %}<span>DOB: {{ t.dob }}</span> &nbsp;{% endif %}
+                            {% if t.case_number %}<span style="font-family:monospace;color:#4b5563;">{{ t.case_number }}</span>{% endif %}
+                        </div>
                         <div class="ticket-item-meta">
-                            <span class="ticket-item-cat">{{ t.category or '—' }}</span>
+                            <span class="ticket-item-cat">{{ t.inbox or t.category or '—' }}</span>
                             <span class="badge badge-{{ (t.priority or 'medium') | lower }}">{{ t.priority or 'Medium' }}</span>
                         </div>
                     </div>
@@ -922,26 +929,49 @@
 
         {% set s_initials = ((selected.patient_name or '?').split()[0][0] | upper) + (((selected.patient_name or '?').split()[-1][0] | upper) if (selected.patient_name or '?').split()|length > 1 else '') %}
 
-        <!-- Top header bar -->
-        <div class="ticket-topbar">
-            <div class="ticket-topbar-avatar" style="background-color: {{ selected.avatar_color }};">{{ s_initials }}</div>
-            <div class="ticket-topbar-info">
-                <div class="ticket-topbar-name">{{ selected.display_name }}</div>
-                <div class="ticket-topbar-meta">
-                    {% if selected.dob %}<span>DOB: {{ selected.dob }}</span>{% endif %}
-                    {% if selected.nhs_number %}<span>NHS: {{ selected.nhs_number }}</span>{% endif %}
-                    {% if selected.phone %}<span>{{ selected.phone }}</span>{% endif %}
+        <!-- Top header bar (AccuRx-style) -->
+        <div class="ticket-topbar" style="flex-wrap:wrap;gap:12px;padding:14px 20px;align-items:flex-start;">
+            <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:200px;">
+                <div class="ticket-topbar-avatar" style="background-color: {{ selected.avatar_color }};">{{ s_initials }}</div>
+                <div>
+                    <div class="ticket-topbar-name" style="font-size:17px;font-weight:800;text-transform:uppercase;letter-spacing:0.01em;">{{ selected.display_name }}</div>
+                    <div class="ticket-topbar-meta" style="margin-top:4px;display:flex;flex-wrap:wrap;gap:14px;">
+                        {% if selected.nhs_number %}<span><span style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;">NHS No.</span><br><strong>{{ selected.nhs_number }}</strong></span>{% endif %}
+                        {% if selected.dob %}<span><span style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;">DOB</span><br>{{ selected.dob }}</span>{% endif %}
+                        {% if selected.phone %}<span><span style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;">Mobile</span><br>{{ selected.phone }}</span>{% endif %}
+                        {% if selected.postcode %}<span><span style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;">Postcode</span><br>{{ selected.postcode }}</span>{% endif %}
+                        {% if selected.gp_practice %}<span><span style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;">Practice</span><br>{{ selected.gp_practice }}</span>{% endif %}
+                        {% if selected.form_fields and selected.form_fields.get('_proxy_caller') %}<span style="background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:3px 8px;"><span style="font-size:10px;font-weight:600;color:#92400e;text-transform:uppercase;">Proxy Caller</span><br><strong style="color:#92400e;">{{ selected.form_fields['_proxy_caller'] }}</strong></span>{% endif %}
+                    </div>
                 </div>
             </div>
-            <span class="badge badge-{{ (selected.status or 'open') | lower | replace(' ', '-') }}">{{ selected.status }}</span>
-            <span class="badge badge-{{ (selected.priority or 'medium') | lower }}">{{ selected.priority }}</span>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+                <div style="display:flex;gap:6px;align-items:center;">
+                    <span class="badge badge-{{ (selected.status or 'open') | lower | replace(' ', '-') }}">{{ selected.status }}</span>
+                    <span class="badge badge-{{ (selected.priority or 'medium') | lower }}">{{ selected.priority }}</span>
+                    {% if selected.match_status == 'verified' %}
+                    <span style="display:inline-flex;align-items:center;gap:4px;background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;border-radius:999px;font-size:11px;font-weight:700;padding:2px 10px;letter-spacing:0.03em;">
+                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#065f46" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        Patient Verified
+                    </span>
+                    {% else %}
+                    <span style="display:inline-flex;align-items:center;gap:4px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:999px;font-size:11px;font-weight:700;padding:2px 10px;letter-spacing:0.03em;">
+                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M6 2v4M6 8.5v.5" stroke="#92400e" stroke-width="2" stroke-linecap="round"/></svg>
+                        Unverified
+                    </span>
+                    {% endif %}
+                </div>
+                {% if selected.case_number %}<span style="font-family:monospace;font-size:12px;color:#6b7280;font-weight:600;">{{ selected.case_number }}</span>{% endif %}
+                {% if selected.inbox %}<span style="font-size:11px;color:#4b5563;background:#f1f5f9;padding:2px 8px;border-radius:4px;">{{ selected.inbox }}</span>{% endif %}
+            </div>
         </div>
 
         <!-- Source bar -->
         <div class="ticket-source-bar">
             Source: Chatbot
-            {% if selected.category %} &bull; Category: <strong>{{ selected.category }}</strong>{% endif %}
-            {% if selected.assigned_to %} &bull; Assignment: <strong>{{ selected.assigned_to }}</strong>{% endif %}
+            {% if selected.category %} &bull; <strong>{{ selected.category }}</strong>{% endif %}
+            {% if selected.assigned_to %} &bull; Assigned: <strong>{{ selected.assigned_to }}</strong>{% endif %}
+            {% if selected.created_at %} &bull; <span title="{{ selected.created_at }}">{{ selected.created_at[:16].replace('T',' ') }} UTC</span>{% endif %}
         </div>
 
         <!-- Scrollable body -->
@@ -1044,13 +1074,20 @@
 
                 <div class="details-field">
                     <label>Status</label>
-                    <select name="status" class="details-select" onchange="document.getElementById('details-form').submit()">
-                        <option value="Open"        {% if selected.status == 'Open'        %}selected{% endif %}>Open</option>
-                        <option value="In Progress" {% if selected.status == 'In Progress' %}selected{% endif %}>In Progress</option>
-                        <option value="Waiting"     {% if selected.status == 'Waiting'     %}selected{% endif %}>Waiting</option>
-                        <option value="Resolved"    {% if selected.status == 'Resolved'    %}selected{% endif %}>Resolved</option>
-                        <option value="Closed"      {% if selected.status == 'Closed'      %}selected{% endif %}>Closed</option>
-                    </select>
+                    <input type="hidden" name="status" id="statusInput" value="{{ selected.status or 'Open' }}">
+                    <button type="button" id="statusToggleBtn"
+                        onclick="toggleStatus()"
+                        style="
+                            width:100%;padding:8px 14px;border-radius:8px;border:none;
+                            font-size:13px;font-weight:700;cursor:pointer;transition:all 0.15s;
+                            {% if selected.status == 'In Progress' %}
+                                background:#dbeafe;color:#1d4ed8;
+                            {% else %}
+                                background:#d1fae5;color:#065f46;
+                            {% endif %}
+                        ">
+                        {% if selected.status == 'In Progress' %}⏳ In Progress{% else %}✅ Open{% endif %}
+                    </button>
                 </div>
 
                 <div class="details-field">
@@ -1064,13 +1101,13 @@
                 </div>
 
                 <div class="details-field">
-                    <label>Assign to</label>
-                    <select name="assigned_to" id="assignedToSelect" class="details-select">
-                        <option value="">Unassigned</option>
+                    <label>Move to Inbox</label>
+                    <select name="inbox" id="assignedToSelect" class="details-select">
                         {% for team in teams %}
-                        <option value="{{ team }}" {% if selected.assigned_to == team %}selected{% endif %}>{{ team }}</option>
+                        <option value="{{ team }}" {% if (selected.inbox or selected.assigned_to) == team %}selected{% endif %}>{{ team }}</option>
                         {% endfor %}
                     </select>
+                    <input type="hidden" name="assigned_to" value="{{ selected.assigned_to or '' }}" />
                 </div>
                 <input type="hidden" name="assignment_comment" id="assignmentCommentInput" value="">
             </form>
@@ -1078,25 +1115,47 @@
             <!-- Assignment Comment Modal -->
             <div id="assignModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:9999; align-items:center; justify-content:center;">
                 <div style="background:#fff; border-radius:14px; padding:28px 32px; max-width:440px; width:90%; box-shadow:0 8px 40px rgba(0,0,0,0.18);">
-                    <h3 style="margin:0 0 6px; font-size:1.05rem; color:#1e293b;">Reassign Ticket</h3>
-                    <p style="margin:0 0 16px; font-size:0.85rem; color:#64748b;">Please add a comment explaining why this ticket is being reassigned before confirming.</p>
+                    <h3 style="margin:0 0 6px; font-size:1.05rem; color:#1e293b;">Redirect Case</h3>
+                    <p style="margin:0 0 16px; font-size:0.85rem; color:#64748b;">Please add a reason for redirecting this case before confirming.</p>
                     <textarea id="assignCommentBox" rows="4" placeholder="e.g. Escalating to clinical team for further review..." style="width:100%; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px; font-size:0.88rem; resize:vertical; outline:none; font-family:inherit;"></textarea>
-                    <p id="assignCommentError" style="color:#dc2626; font-size:0.8rem; margin:6px 0 0; display:none;">A comment is required before reassigning.</p>
+                    <p id="assignCommentError" style="color:#dc2626; font-size:0.8rem; margin:6px 0 0; display:none;">A reason is required before redirecting.</p>
                     <div style="display:flex; gap:10px; margin-top:18px; justify-content:flex-end;">
                         <button id="assignCancelBtn" style="padding:8px 18px; border:1px solid #e2e8f0; background:#f8fafc; border-radius:8px; cursor:pointer; font-size:0.88rem;">Cancel</button>
-                        <button id="assignConfirmBtn" style="padding:8px 18px; background:#2563eb; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:0.88rem; font-weight:600;">Confirm Reassignment</button>
+                        <button id="assignConfirmBtn" style="padding:8px 18px; background:#2563eb; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:0.88rem; font-weight:600;">Confirm Redirect</button>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Close ticket button -->
-        <form method="POST" action="{{ url_for('ticket_close', ticket_id=selected.id) }}">
-            <button type="submit" class="btn-close-ticket"
-                {% if selected.status == 'Closed' %}disabled style="opacity:0.5;cursor:not-allowed;"{% endif %}>
-                {% if selected.status == 'Closed' %}Ticket Closed{% else %}Close Ticket{% endif %}
-            </button>
-        </form>
+        {% if selected.status == 'Closed' %}
+        <button class="btn-close-ticket" disabled style="opacity:0.5;cursor:not-allowed;">Ticket Closed</button>
+        {% else %}
+        <button class="btn-close-ticket" onclick="document.getElementById('closeTicketModal').style.display='flex'">Close Ticket</button>
+        {% endif %}
+
+        <!-- Close Ticket Modal -->
+        <div id="closeTicketModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;">
+            <div style="background:#fff;border-radius:12px;width:440px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.2);overflow:hidden;">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;">
+                    <h2 style="font-size:17px;font-weight:700;color:#111;">Close Ticket</h2>
+                    <button onclick="document.getElementById('closeTicketModal').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:22px;color:#6b7280;line-height:1;">×</button>
+                </div>
+                <form method="POST" action="{{ url_for('ticket_close', ticket_id=selected.id) }}">
+                    <div style="padding:0 24px 20px;">
+                        <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">Closing note <span style="font-weight:400;color:#9ca3af;">(required)</span></label>
+                        <textarea name="close_comment" rows="3" required placeholder="Reason for closing or summary of resolution..."
+                            style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box;"></textarea>
+                    </div>
+                    <div style="display:flex;justify-content:flex-end;gap:10px;padding:14px 24px;border-top:1px solid #e5e7eb;">
+                        <button type="button" onclick="document.getElementById('closeTicketModal').style.display='none'"
+                            style="padding:9px 18px;border:1px solid #d1d5db;border-radius:8px;background:#fff;font-size:13px;font-weight:600;color:#374151;cursor:pointer;">Cancel</button>
+                        <button type="submit"
+                            style="padding:9px 20px;border:none;border-radius:8px;background:#dc2626;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">Confirm Close</button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
         <!-- Linked Conversation -->
         <div class="details-section">
@@ -1387,5 +1446,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+function toggleStatus() {
+    const input = document.getElementById('statusInput');
+    const btn   = document.getElementById('statusToggleBtn');
+    const isOpen = input.value === 'Open';
+    input.value = isOpen ? 'In Progress' : 'Open';
+    if (isOpen) {
+        btn.textContent = '⏳ In Progress';
+        btn.style.background = '#dbeafe';
+        btn.style.color = '#1d4ed8';
+    } else {
+        btn.textContent = '✅ Open';
+        btn.style.background = '#d1fae5';
+        btn.style.color = '#065f46';
+    }
+    document.getElementById('details-form').submit();
+}
 </script>
 {% endblock %}
