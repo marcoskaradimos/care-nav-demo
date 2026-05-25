@@ -1411,7 +1411,7 @@ def _build_ticket_list(filters=None):
         current_user = session.get("staff_username", "")
         conditions.append(f"assigned_to = {p(current_user)}")
     elif team == "unassigned":
-        conditions.append("(inbox IS NULL OR inbox = '' OR inbox = 'Unassigned')")
+        conditions.append("(assigned_to IS NULL OR assigned_to = '')")
     elif team:
         conditions.append(f"inbox = {p(team)}")
 
