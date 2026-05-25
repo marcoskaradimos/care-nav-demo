@@ -442,6 +442,17 @@
     word-break: break-word;
 }
 
+.form-section-divider {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #94a3b8;
+    padding: 6px 0 4px;
+    border-bottom: 1px solid #f1f5f9;
+    margin-bottom: 4px;
+}
+
 /* ── Activity Timeline ── */
 .timeline {
     display: flex;
@@ -1126,7 +1137,28 @@
                     </button>
                 </div>
                 <div class="form-responses-card-body" id="formResponsesBody">
+                    {% set ff = selected.form_fields %}
+
+                    {# ── Patient info section ── #}
+                    {% set patient_keys = [('patient_name','Patient Name'),('dob','Date of Birth'),('phone','Phone'),('nhs_number','NHS Number'),('postcode','Postcode'),('_proxy_caller','Proxy Caller')] %}
+                    {% set has_patient = namespace(val=false) %}
+                    {% for k,_ in patient_keys %}{% if ff.get(k) %}{% set has_patient.val = true %}{% endif %}{% endfor %}
+                    {% if has_patient.val %}
+                    <div class="form-section-divider">Patient Information</div>
+                    {% for key, label in patient_keys %}
+                    {% if ff.get(key) %}
+                    <div class="form-field-row">
+                        <span class="form-field-label">{{ label }}:</span>
+                        <span class="form-field-value">{{ ff[key] }}</span>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                    <div class="form-section-divider">Clinical Details</div>
+                    {% endif %}
+
+                    {# ── Clinical / form fields ── #}
                     {% set field_labels = {
+                        '_last_input':         'Initial Symptom',
                         'symptom_description': 'Reason for Calling',
                         'symptom_duration':    'Duration',
                         'symptom_character':   'Description',
@@ -1144,16 +1176,10 @@
                         'cert_type':           'Certificate Type',
                         'cert_reason':         'Certificate Reason',
                         'enquiry_details':     'Enquiry Details',
-                        'patient_name':        'Patient Name',
-                        'nhs_number':          'NHS Number',
-                        'dob':                 'Date of Birth',
-                        'phone':               'Phone',
-                        'postcode':            'Postcode',
-                        '_last_input':         'Last Input',
-                        '_proxy_caller':       'Proxy Caller',
                     } %}
-                    {% for key, val in selected.form_fields.items() %}
-                    {% if val and key != '_filled_by_staff' %}
+                    {% set skip_keys = ['patient_name','dob','phone','nhs_number','postcode','_proxy_caller','_filled_by_staff'] %}
+                    {% for key, val in ff.items() %}
+                    {% if val and key not in skip_keys %}
                     <div class="form-field-row">
                         <span class="form-field-label">{{ field_labels.get(key, key | replace('_', ' ') | title) }}:</span>
                         <span class="form-field-value">
