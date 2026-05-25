@@ -1419,7 +1419,9 @@ def ticket_detail(ticket_id):
     sort   = request.args.get("sort", "newest")
     search = request.args.get("search", "")
     team   = request.args.get("team", "")
-    filters      = {"status": status_filter, "sort": sort, "search": search, "team": team}
+    view   = request.args.get("view", "")
+    user   = request.args.get("user", "")
+    filters      = {"status": status_filter, "sort": sort, "search": search, "team": team, "view": view, "user": user}
     tickets_list = _build_ticket_list(filters)
 
     ticket_dict = dict(ticket)

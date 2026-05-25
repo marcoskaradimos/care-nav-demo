@@ -476,7 +476,7 @@
                 {% set initials = ((t.patient_name or '?').split()[0][0] | upper) + (((t.patient_name or '?').split()[-1][0] | upper) if (t.patient_name or '?').split()|length > 1 else '') %}
                 {% set priority_colors = {'Low': '#10b981', 'Medium': '#94a3b8', 'High': '#f97316', 'Urgent': '#dc2626'} %}
                 {% set border_color = priority_colors.get(t.priority or 'Medium', '#94a3b8') %}
-                <a href="{{ url_for('ticket_detail', ticket_id=t.id) }}?status={{ filters.status }}&sort={{ filters.sort }}&search={{ filters.search }}&team={{ filters.team }}"
+                <a href="{{ url_for('ticket_detail', ticket_id=t.id) }}?status={{ filters.status }}&sort={{ filters.sort }}&search={{ filters.search }}&team={{ filters.team }}&view={{ filters.view }}&user={{ filters.user }}"
                    class="ticket-item" style="border-left-color: {{ border_color }};">
                     <div class="ticket-avatar" style="background-color: {{ t.avatar_color }};">{{ initials }}</div>
                     <div class="ticket-item-body">
