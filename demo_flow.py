@@ -62,8 +62,8 @@ NODES["main_menu"] = opts("main_menu", "", [
 # ── APPOINTMENT PATH ──────────────────────────────────────────────────────────
 
 NODES["appointment_type"] = opts("appointment_type", "What type of appointment would you like to book?", [
-    {"id": "opt_nurse",  "label": "Nurse Appointment"},
     {"id": "opt_doctor", "label": "Doctor Appointment"},
+    {"id": "opt_nurse",  "label": "Nurse Appointment"},
 ])
 
 # Nurse path
