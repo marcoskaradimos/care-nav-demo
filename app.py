@@ -21,7 +21,8 @@ import demo_flow as df
 app = Flask(__name__)
 
 # Jinja2 custom filters
-app.jinja_env.filters['split'] = lambda s, sep=' ': s.split(sep)
+app.jinja_env.filters['split']    = lambda s, sep=' ': s.split(sep)
+app.jinja_env.filters['fromjson'] = lambda s: json.loads(s) if isinstance(s, str) else s
 
 # ── Secret Loading ────────────────────────────────────────────────────────────
 def _get_secret(secret_id, fallback_env=None):
@@ -341,14 +342,15 @@ def _score_candidate(fn, ln, dob_norm, pc, nhs, pfn, pln, pdob, ppc, pnhs):
 
 def match_patient(first_name, last_name, dob, postcode, nhs_number=""):
     """Match against patients.json only (the authoritative source).
-    The registered_patients DB table is intentionally excluded from matching
-    because it may contain stale or incomplete records."""
+    Returns (best_match, confidence, all_strong_candidates).
+    all_strong_candidates is populated when multiple records score >= 7.0."""
     fn       = first_name.strip().lower()
     ln       = last_name.strip().lower()
     dob_norm = _norm_dob(dob)
     pc       = postcode.strip().upper().replace(" ", "")
     nhs      = nhs_number.strip().replace(" ", "")
     best, best_score = None, 0.0
+    strong_candidates = []  # all records scoring >= 7.0
 
     for p in load_patients():
         pfn  = p["first_name"].strip().lower()
@@ -357,13 +359,20 @@ def match_patient(first_name, last_name, dob, postcode, nhs_number=""):
         ppc  = p["postcode"].strip().upper().replace(" ", "")
         pnhs = p["nhs_number"].strip().replace(" ", "")
         score = _score_candidate(fn, ln, dob_norm, pc, nhs, pfn, pln, pdob, ppc, pnhs)
+        if score >= 7.0:
+            strong_candidates.append((score, p))
         if score > best_score:
             best_score, best = score, p
 
+    # Sort strong candidates best-first
+    strong_candidates.sort(key=lambda x: x[0], reverse=True)
+
     if best_score >= 7.0:
-        return best, "matched"
+        if len(strong_candidates) > 1:
+            return best, "ambiguous", [p for _, p in strong_candidates]
+        return best, "matched", []
     elif best_score >= 3.5:
-        return best, "partial"
+        return best, "partial", []
     return None, None
 
 # ── HTML Stripper ─────────────────────────────────────────────────────────────
@@ -777,7 +786,7 @@ def patient_match():
     nhs_number  = data.get("nhs_number", "")
     phone       = data.get("phone", "")
 
-    patient, confidence = match_patient(first_name, last_name, dob, postcode, nhs_number)
+    patient, confidence, _similar = match_patient(first_name, last_name, dob, postcode, nhs_number)
 
     dob_display = dob
     if dob and "-" in dob:
@@ -1157,15 +1166,21 @@ def _create_demo_ticket(confirm_node_id, form_data):
         gp_practice  = sess_practice
 
         match_status = "unverified"
-        matched, confidence = match_patient(first, last, dob, postcode, nhs_number)
-        if matched and confidence == "matched":
-            # Only mark as verified if NHS number was provided and matches
-            nhs_provided = nhs_number.strip().replace(" ", "")
-            nhs_on_record = matched.get("nhs_number", "").strip().replace(" ", "")
-            if nhs_provided and nhs_provided == nhs_on_record:
-                match_status = "verified"
+        matched, confidence, similar_patients = match_patient(first, last, dob, postcode, nhs_number)
+        if matched and confidence in ("matched", "ambiguous"):
+            if confidence == "ambiguous":
+                match_status = "needs_confirmation"
+                # Store all similar candidates on the ticket for staff to review
+                form_data["_similar_patients"] = json.dumps([{
+                    "name":       f"{p.get('first_name','')} {p.get('last_name','')}".strip(),
+                    "dob":        p.get("date_of_birth", ""),
+                    "nhs":        p.get("nhs_number", ""),
+                    "postcode":   p.get("postcode", ""),
+                    "phone":      p.get("telephone", ""),
+                    "practice":   p.get("gp_practice", ""),
+                } for p in similar_patients])
             else:
-                match_status = "partial"
+                match_status = "verified"
             if matched.get("first_name") and matched.get("last_name"):
                 patient_name = f"{matched['first_name']} {matched['last_name']}"
             if matched.get("nhs_number"):
@@ -1548,6 +1563,59 @@ def ticket_update(ticket_id):
     params = {k: v for k, v in request.form.items() if k in ("list_status", "list_sort", "list_search", "list_team")}
     qs     = "&".join(f"{k[5:]}={v}" for k, v in params.items() if v)
     return redirect(url_for("ticket_detail", ticket_id=ticket_id) + (f"?{qs}" if qs else ""))
+
+
+@app.route("/inbox/<int:ticket_id>/confirm_patient", methods=["POST"])
+@staff_required
+def confirm_patient(ticket_id):
+    """Staff confirms the correct patient from ambiguous matches."""
+    idx          = int(request.form.get("patient_index", 0))
+    current_user = session.get("staff_username", "Staff")
+    now          = datetime.utcnow().isoformat()
+    db           = get_db()
+
+    ticket = db.execute(text("SELECT form_data FROM tickets WHERE id=:id"), {"id": ticket_id}).mappings().fetchone()
+    if not ticket:
+        db.close()
+        return redirect(url_for("inbox"))
+
+    fd = json.loads(ticket["form_data"] or "{}")
+    candidates = json.loads(fd.get("_similar_patients", "[]"))
+
+    if 0 <= idx < len(candidates):
+        chosen = candidates[idx]
+        db.execute(text("""
+            UPDATE tickets SET
+                patient_name = :pn,
+                nhs_number   = :nhs,
+                dob          = :dob,
+                phone        = :phone,
+                postcode     = :pc,
+                gp_practice  = :gp,
+                match_status = 'verified',
+                updated_at   = :now
+            WHERE id = :id
+        """), {
+            "pn":    chosen["name"],
+            "nhs":   chosen["nhs"],
+            "dob":   chosen["dob"],
+            "phone": chosen["phone"],
+            "pc":    chosen["postcode"],
+            "gp":    chosen["practice"],
+            "now":   now,
+            "id":    ticket_id,
+        })
+        # Remove _similar_patients from form_data now confirmed
+        fd.pop("_similar_patients", None)
+        db.execute(text("UPDATE tickets SET form_data=:fd WHERE id=:id"), {"fd": json.dumps(fd), "id": ticket_id})
+        db.execute(text("INSERT INTO notes (ticket_id, author, content, created_at) VALUES (:tid, :auth, :content, :now)"),
+            {"tid": ticket_id, "auth": current_user,
+             "content": f"Patient confirmed as **{chosen['name']}** (NHS: {chosen['nhs']}) · match status set to **Verified**",
+             "now": now})
+        db.commit()
+
+    db.close()
+    return redirect(url_for("ticket_detail", ticket_id=ticket_id))
 
 
 @app.route("/inbox/<int:ticket_id>/close", methods=["POST"])
