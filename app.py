@@ -1493,6 +1493,11 @@ def ticket_update(ticket_id):
 
     new_inbox = inbox_val or assigned_to
 
+    # If redirected to a different team/inbox while In Progress → reset to Open and unassign
+    if new_inbox and new_inbox != prev_inbox and prev_status == "In Progress":
+        status      = "Open"
+        assigned_to = ""
+
     if status == "In Progress" and not assigned_to:
         assigned_to = current_user
 
@@ -1502,7 +1507,9 @@ def ticket_update(ticket_id):
     )
 
     audit_lines = []
-    if status != prev_status:
+    if new_inbox and new_inbox != prev_inbox and prev_status == "In Progress" and status == "Open":
+        audit_lines.append(f"Redirected to **{new_inbox}** · status reset to **Open** · unassigned from **{prev_assigned}**")
+    elif status != prev_status:
         audit_lines.append(f"Status changed: **{prev_status}** → **{status}**")
     if priority != prev_priority:
         audit_lines.append(f"Priority changed: **{prev_priority}** → **{priority}**")
