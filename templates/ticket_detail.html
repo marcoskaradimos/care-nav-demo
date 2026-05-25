@@ -1117,7 +1117,7 @@
                     {% if selected.form_fields and selected.form_fields.get('_filled_by_staff') %}
                     <span style="display:inline-flex;align-items:center;gap:5px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600;color:#1d4ed8;white-space:nowrap;">
                         <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="6" r="3.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                        Filed by {{ selected.form_fields['_filled_by_staff'] }}
+                        Form filled in by: {{ selected.form_fields['_filled_by_staff'] }}
                     </span>
                     {% endif %}
                     <button id="copyTicketBtn" title="Copy all ticket info" onclick="copyTicketInfo()" style="background:none;border:1px solid #c7d2e0;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:0.75rem;color:#4b5563;display:flex;align-items:center;gap:5px;flex-shrink:0;">
