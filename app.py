@@ -1036,6 +1036,31 @@ def _self_care_advice(symptom):
         return "Please rest and stay hydrated. If symptoms worsen or do not improve within 48 hours, contact us to book an appointment."
 
 
+@app.route("/nhs/link")
+def nhs_link():
+    """Return the best NHS condition URL for a given symptom."""
+    symptom = request.args.get("q", "").strip().lower()
+    if not symptom:
+        return jsonify({"url": f"https://www.nhs.uk/search/results?q="})
+    # Check pharmacy referrals first (they have direct NHS URLs)
+    path = os.path.join(os.path.dirname(__file__), "data", "pharmacy_referrals.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            referrals = json.load(f)
+        for r in referrals:
+            for kw in r.get("keywords", []):
+                if kw.lower() in symptom or symptom in kw.lower():
+                    return jsonify({"url": r["nhs_url"], "condition": r["condition"]})
+    except Exception:
+        pass
+    # Check NHS_CONDITIONS mapping
+    for condition_name, keywords, url in NHS_CONDITIONS:
+        if any(kw in symptom or symptom in kw for kw in keywords):
+            return jsonify({"url": url, "condition": condition_name.title()})
+    # Fallback to search
+    return jsonify({"url": f"https://www.nhs.uk/search/results?q={symptom.replace(' ', '+')}", "condition": symptom})
+
+
 def _check_pharmacy_referral(symptom):
     path = os.path.join(os.path.dirname(__file__), "data", "pharmacy_referrals.json")
     try:

@@ -204,10 +204,16 @@ function renderFlowNode(node, skipHistory = false) {
         appendAssistantMessage(node.message);
         // Append NHS self-care link for self-care end nodes
         if (node.node_id === "self_care_result" && symptomDescription) {
-            const query = encodeURIComponent(symptomDescription.trim());
-            const nhsUrl = `https://www.nhs.uk/search/results?q=${query}`;
-            const linkMsg = `[View NHS guidance for "${symptomDescription.trim()}"](${nhsUrl})`;
-            appendAssistantMessage(linkMsg);
+            fetch(`/nhs/link?q=${encodeURIComponent(symptomDescription.trim())}`)
+                .then(r => r.json())
+                .then(d => {
+                    const label = d.condition ? `View NHS guidance — ${d.condition}` : "View NHS guidance";
+                    appendAssistantMessage(`[${label}](${d.url})`);
+                })
+                .catch(() => {
+                    const q = encodeURIComponent(symptomDescription.trim());
+                    appendAssistantMessage(`[View NHS guidance](https://www.nhs.uk/search/results?q=${q})`);
+                });
         }
     }
 
