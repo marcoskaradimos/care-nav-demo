@@ -1082,9 +1082,15 @@
             <!-- Form Responses card -->
             {% if selected.form_fields %}
             <div class="form-responses-card">
-                <div class="form-responses-card-header" style="display:flex;align-items:center;justify-content:space-between;">
-                    <span>&#128203; Form responses:</span>
-                    <button id="copyTicketBtn" title="Copy all ticket info" onclick="copyTicketInfo()" style="background:none;border:1px solid #c7d2e0;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:0.75rem;color:#4b5563;display:flex;align-items:center;gap:5px;">
+                <div class="form-responses-card-header" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                    <span style="flex-shrink:0;">&#128203; Form responses:</span>
+                    {% if selected.form_fields and selected.form_fields.get('_filled_by_staff') %}
+                    <span style="display:inline-flex;align-items:center;gap:5px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:600;color:#1d4ed8;white-space:nowrap;">
+                        <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="6" r="3.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        Filed by {{ selected.form_fields['_filled_by_staff'] }}
+                    </span>
+                    {% endif %}
+                    <button id="copyTicketBtn" title="Copy all ticket info" onclick="copyTicketInfo()" style="background:none;border:1px solid #c7d2e0;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:0.75rem;color:#4b5563;display:flex;align-items:center;gap:5px;flex-shrink:0;">
                         <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
                         Copy
                     </button>
@@ -1115,10 +1121,9 @@
                         'postcode':            'Postcode',
                         '_last_input':         'Last Input',
                         '_proxy_caller':       'Proxy Caller',
-                        '_filled_by_staff':    'Form Filled in by',
                     } %}
                     {% for key, val in selected.form_fields.items() %}
-                    {% if val %}
+                    {% if val and key != '_filled_by_staff' %}
                     <div class="form-field-row">
                         <span class="form-field-label">{{ field_labels.get(key, key | replace('_', ' ') | title) }}:</span>
                         <span class="form-field-value">
