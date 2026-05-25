@@ -325,7 +325,41 @@
             <input type="hidden" name="postcode"     id="hidPostcode" />
             <input type="hidden" name="gp_practice"  id="hidPractice" />
 
-            <!-- Patient search -->
+            <!-- ── PROXY MODE: caller details first ── -->
+            <div class="triage-proxy-fields" id="proxyFields">
+                <p class="triage-section-label">Caller Details</p>
+
+                <input type="hidden" name="proxy_first_name" id="hidProxyFirst" />
+                <input type="hidden" name="proxy_last_name"  id="hidProxyLast" />
+
+                <div class="triage-field-row">
+                    <div class="triage-field">
+                        <label for="proxyFirstName">First Name *</label>
+                        <input type="text" id="proxyFirstName" placeholder="First name" oninput="syncProxyManual()" />
+                    </div>
+                    <div class="triage-field">
+                        <label for="proxyLastName">Last Name *</label>
+                        <input type="text" id="proxyLastName" placeholder="Last name" oninput="syncProxyManual()" />
+                    </div>
+                </div>
+                <div class="triage-field">
+                    <label for="proxyRelationship">Relationship to Patient *</label>
+                    <select id="proxyRelationship" name="relationship">
+                        <option value="" disabled selected>Select relationship</option>
+                        <option>Parent</option>
+                        <option>Guardian</option>
+                        <option>Carer</option>
+                        <option>Spouse/Partner</option>
+                        <option>Child</option>
+                        <option>Sibling</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+
+                <div class="triage-divider">Patient</div>
+            </div>
+
+            <!-- Patient search (shown in both modes, below proxy details in proxy mode) -->
             <p class="triage-section-label" id="patientSearchLabel">Search Patient</p>
             <div class="triage-search-wrap">
                 <span class="triage-search-icon">
@@ -359,72 +393,6 @@
                         <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                     </svg>
                 </button>
-            </div>
-
-            <!-- Proxy fields (hidden unless proxy mode) -->
-            <div class="triage-proxy-fields" id="proxyFields">
-                <div class="triage-divider">Proxy / Caller Details</div>
-                <p class="triage-section-label">Search Proxy Caller</p>
-                <div class="triage-search-wrap">
-                    <span class="triage-search-icon">
-                        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                            <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.5"/>
-                            <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                        </svg>
-                    </span>
-                    <input
-                        type="text"
-                        id="proxySearch"
-                        class="triage-search-input"
-                        placeholder="Search by name, NHS number…"
-                        autocomplete="off"
-                    />
-                </div>
-                <p class="triage-hint">Or enter manually below</p>
-
-                <!-- Proxy results -->
-                <div class="triage-results" id="proxyResults"></div>
-
-                <!-- Proxy selected card -->
-                <div class="triage-selected-card" id="selectedProxyCard">
-                    <div class="triage-result-avatar av-3" id="selectedProxyAvatar"></div>
-                    <div class="triage-selected-info">
-                        <div class="triage-selected-name" id="selectedProxyName"></div>
-                        <div class="triage-selected-meta" id="selectedProxyMeta">Proxy caller</div>
-                    </div>
-                    <button type="button" class="triage-selected-clear" onclick="clearProxy()" title="Clear">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                        </svg>
-                    </button>
-                </div>
-
-                <input type="hidden" name="proxy_first_name" id="hidProxyFirst" />
-                <input type="hidden" name="proxy_last_name"  id="hidProxyLast" />
-
-                <div class="triage-field-row" id="proxyManualFields">
-                    <div class="triage-field">
-                        <label for="proxyFirstName">First Name *</label>
-                        <input type="text" id="proxyFirstName" placeholder="First name" oninput="syncProxyManual()" />
-                    </div>
-                    <div class="triage-field">
-                        <label for="proxyLastName">Last Name *</label>
-                        <input type="text" id="proxyLastName" placeholder="Last name" oninput="syncProxyManual()" />
-                    </div>
-                </div>
-                <div class="triage-field">
-                    <label for="proxyRelationship">Relationship to Patient *</label>
-                    <select id="proxyRelationship" name="relationship">
-                        <option value="" disabled selected>Select relationship</option>
-                        <option>Parent</option>
-                        <option>Guardian</option>
-                        <option>Carer</option>
-                        <option>Spouse/Partner</option>
-                        <option>Child</option>
-                        <option>Sibling</option>
-                        <option>Other</option>
-                    </select>
-                </div>
             </div>
 
             <button type="submit" class="triage-continue-btn" id="continueBtn" disabled>
@@ -487,14 +455,6 @@ document.getElementById("patientSearch").addEventListener("input", function() {
     patientTimer = setTimeout(() => runSearch(q, "patientResults", selectPatient), 250);
 });
 
-// ── Proxy search ─────────────────────────────────────────────────
-let proxyTimer;
-document.getElementById("proxySearch").addEventListener("input", function() {
-    clearTimeout(proxyTimer);
-    const q = this.value.trim();
-    if (q.length < 2) { document.getElementById("proxyResults").style.display = "none"; return; }
-    proxyTimer = setTimeout(() => runSearch(q, "proxyResults", selectProxy), 250);
-});
 
 async function runSearch(q, containerId, onSelect) {
     const container = document.getElementById(containerId);
@@ -562,34 +522,6 @@ function clearPatient() {
     checkReady();
 }
 
-function selectProxy(p) {
-    selectedProxy = p;
-    const name = `${p.first_name} ${p.last_name}`;
-    const color = avatarColor(name);
-    document.getElementById("selectedProxyAvatar").style.background = color;
-    document.getElementById("selectedProxyAvatar").textContent = initials(name);
-    document.getElementById("selectedProxyName").textContent = name;
-    document.getElementById("selectedProxyCard").classList.add("visible");
-    document.getElementById("proxyResults").style.display = "none";
-    document.getElementById("proxySearch").value = "";
-
-    // fill manual fields
-    document.getElementById("proxyFirstName").value = p.first_name || "";
-    document.getElementById("proxyLastName").value  = p.last_name  || "";
-    document.getElementById("hidProxyFirst").value  = p.first_name || "";
-    document.getElementById("hidProxyLast").value   = p.last_name  || "";
-    checkReady();
-}
-
-function clearProxy() {
-    selectedProxy = null;
-    document.getElementById("selectedProxyCard").classList.remove("visible");
-    document.getElementById("proxyFirstName").value = "";
-    document.getElementById("proxyLastName").value  = "";
-    document.getElementById("hidProxyFirst").value  = "";
-    document.getElementById("hidProxyLast").value   = "";
-    checkReady();
-}
 
 function syncProxyManual() {
     document.getElementById("hidProxyFirst").value = document.getElementById("proxyFirstName").value;
