@@ -1159,7 +1159,13 @@ def _create_demo_ticket(confirm_node_id, form_data):
         match_status = "unverified"
         matched, confidence = match_patient(first, last, dob, postcode, nhs_number)
         if matched and confidence == "matched":
-            match_status = "verified"
+            # Only mark as verified if NHS number was provided and matches
+            nhs_provided = nhs_number.strip().replace(" ", "")
+            nhs_on_record = matched.get("nhs_number", "").strip().replace(" ", "")
+            if nhs_provided and nhs_provided == nhs_on_record:
+                match_status = "verified"
+            else:
+                match_status = "partial"
             if matched.get("first_name") and matched.get("last_name"):
                 patient_name = f"{matched['first_name']} {matched['last_name']}"
             if matched.get("nhs_number"):
