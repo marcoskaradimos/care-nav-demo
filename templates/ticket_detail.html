@@ -1176,10 +1176,12 @@
                 {% for note in notes %}
                 {% set is_system   = note.author == 'system' %}
                 {% set is_redirect = 'Redirected to' in note.content or 'reset to' in note.content %}
-                {% set is_note     = not is_system and not is_redirect and 'Status changed' not in note.content and 'Assigned' not in note.content %}
-                {% set dot_class   = 'timeline-dot--system' if is_system else ('timeline-dot--redirect' if is_redirect else ('timeline-dot--note' if is_note else 'timeline-dot--user')) %}
-                {% set body_class  = 'timeline-body--system' if is_system else ('timeline-body--redirect' if is_redirect else ('timeline-body--note' if is_note else '')) %}
-                {% set dot_label   = '⚙' if is_system else ('↪' if is_redirect else ('✎' if is_note else note.author[0])) %}
+                {% set is_status   = 'Status changed' in note.content or ('Assigned to' in note.content and 'Redirected' not in note.content and 'unassigned' not in note.content) %}
+                {% set is_note     = not is_system and not is_redirect and not is_status %}
+                {% if is_status %}{% continue %}{% endif %}
+                {% set dot_class   = 'timeline-dot--system' if is_system else ('timeline-dot--redirect' if is_redirect else 'timeline-dot--note') %}
+                {% set body_class  = 'timeline-body--system' if is_system else ('timeline-body--redirect' if is_redirect else 'timeline-body--note') %}
+                {% set dot_label   = '⚙' if is_system else ('↪' if is_redirect else '✎') %}
                 <div class="timeline-item">
                     <div class="timeline-line"></div>
                     <div class="timeline-dot-col">
@@ -1194,8 +1196,6 @@
                             <span class="timeline-badge timeline-badge--redirect">↪ Redirected</span>
                             {% elif is_note %}
                             <span class="timeline-badge timeline-badge--note">✎ Note</span>
-                            {% elif 'Status changed' in note.content %}
-                            <span class="timeline-badge timeline-badge--status">Status</span>
                             {% endif %}
                             <span class="timeline-time">{{ note.created_at[:16].replace('T', ' ') if note.created_at else '' }} UTC</span>
                         </div>
