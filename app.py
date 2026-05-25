@@ -1510,18 +1510,24 @@ def ticket_update(ticket_id):
     )
 
     audit_lines = []
-    if new_inbox and new_inbox != prev_inbox and prev_status == "In Progress" and status == "Open":
-        audit_lines.append(f"Redirected to **{new_inbox}** · status reset to **Open** · unassigned from **{prev_assigned}**")
-    elif status != prev_status:
-        audit_lines.append(f"Status changed: **{prev_status}** → **{status}**")
-    if priority != prev_priority:
-        audit_lines.append(f"Priority changed: **{prev_priority}** → **{priority}**")
-    if new_inbox and new_inbox != prev_inbox:
+    inbox_changed = new_inbox and new_inbox != prev_inbox
+
+    if inbox_changed:
         audit_lines.append(f"Redirected to **{new_inbox}**")
-    if assigned_to and assigned_to != prev_assigned:
+        if prev_status == "In Progress" and status == "Open":
+            audit_lines.append(f"Status reset to **Open**")
+            audit_lines.append(f"Unassigned from **{prev_assigned}**")
+    elif status != prev_status:
+        audit_lines.append(f"Status: **{prev_status}** → **{status}**")
+
+    if priority != prev_priority:
+        audit_lines.append(f"Priority: **{prev_priority}** → **{priority}**")
+
+    if not inbox_changed and assigned_to and assigned_to != prev_assigned:
         audit_lines.append(f"Assigned to **{assigned_to}**")
-    elif not assigned_to and prev_assigned:
+    elif not inbox_changed and not assigned_to and prev_assigned:
         audit_lines.append(f"Unassigned (was **{prev_assigned}**)")
+
     if assignment_comment:
         audit_lines.append(f"Note: {assignment_comment}")
 
