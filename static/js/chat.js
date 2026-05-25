@@ -202,6 +202,13 @@ function renderFlowNode(node, skipHistory = false) {
     // Show message
     if (node.message) {
         appendAssistantMessage(node.message);
+        // Append NHS self-care link for self-care end nodes
+        if (node.node_id === "self_care_result" && symptomDescription) {
+            const query = encodeURIComponent(symptomDescription.trim());
+            const nhsUrl = `https://www.nhs.uk/search/results?q=${query}`;
+            const linkMsg = `[View NHS guidance for "${symptomDescription.trim()}"](${nhsUrl})`;
+            appendAssistantMessage(linkMsg);
+        }
     }
 
     // Update sidebar label
