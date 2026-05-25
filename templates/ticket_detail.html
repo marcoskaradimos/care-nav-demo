@@ -1113,7 +1113,7 @@
         <div class="ticket-source-bar">
             Source: Chatbot
             {% if selected.category %} &bull; <strong>{{ selected.category }}</strong>{% endif %}
-            {% if selected.assigned_to %} &bull; Assigned: <strong>{{ selected.assigned_to }}</strong>{% endif %}
+            {% if selected.assigned_to %} &bull; Assigned: <strong>{{ selected.assigned_to | capitalize }}</strong>{% endif %}
             {% if selected.created_at %} &bull; <span title="{{ selected.created_at }}">{{ selected.created_at[:16].replace('T',' ') }} UTC</span>{% endif %}
         </div>
 
@@ -1216,7 +1216,7 @@
                     </div>
                     <div class="timeline-body {{ body_class }}">
                         <div class="timeline-header">
-                            <span class="timeline-author">{{ 'System' if is_system else note.author }}</span>
+                            <span class="timeline-author">{{ 'System' if is_system else note.author | capitalize }}</span>
                             {% if is_system %}
                             <span class="timeline-badge timeline-badge--system">System</span>
                             {% elif is_redirect %}
