@@ -201,19 +201,37 @@ function renderFlowNode(node, skipHistory = false) {
 
     // Show message
     if (node.message) {
-        appendAssistantMessage(node.message);
-        // Append NHS self-care link for self-care end nodes
+        const { bubble: msgBubble } = createAssistantBubble();
+        renderMarkdown(msgBubble, node.message);
+        scrollToBottom();
+
+        // Inject NHS link inside the same bubble for self-care end nodes
         const _selfCareSymptom = symptomDescription || node.symptom || "";
         if (node.node_id === "self_care_result" && _selfCareSymptom) {
             fetch(`/nhs/link?q=${encodeURIComponent(_selfCareSymptom.trim())}`)
                 .then(r => r.json())
                 .then(d => {
-                    const label = d.condition ? `View NHS guidance — ${d.condition}` : "View NHS guidance";
-                    appendAssistantMessage(`[${label}](${d.url})`);
+                    const conditionName = d.condition || _selfCareSymptom;
+                    const nhsBtn = document.createElement("a");
+                    nhsBtn.href = d.url;
+                    nhsBtn.target = "_blank";
+                    nhsBtn.className = "nhs-guidance-btn";
+                    nhsBtn.innerHTML = `
+                        <span class="nhs-logo-badge">NHS</span>
+                        <span class="nhs-guidance-label">${conditionName}</span>
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="margin-left:auto;opacity:0.6"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                    msgBubble.appendChild(nhsBtn);
+                    scrollToBottom();
                 })
                 .catch(() => {
                     const q = encodeURIComponent(_selfCareSymptom.trim());
-                    appendAssistantMessage(`[View NHS guidance](https://www.nhs.uk/search/results?q=${q})`);
+                    const nhsBtn = document.createElement("a");
+                    nhsBtn.href = `https://www.nhs.uk/search/results?q=${q}`;
+                    nhsBtn.target = "_blank";
+                    nhsBtn.className = "nhs-guidance-btn";
+                    nhsBtn.innerHTML = `<span class="nhs-logo-badge">NHS</span><span class="nhs-guidance-label">${_selfCareSymptom}</span>`;
+                    msgBubble.appendChild(nhsBtn);
+                    scrollToBottom();
                 });
         }
     }
