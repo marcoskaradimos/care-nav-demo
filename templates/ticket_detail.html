@@ -1204,10 +1204,11 @@
                 {% set is_redirect = 'Redirected to' in note.content or 'reset to' in note.content %}
                 {% set is_status   = 'Status changed' in note.content or ('Assigned to' in note.content and 'Redirected' not in note.content and 'unassigned' not in note.content) %}
                 {% set is_note     = not is_system and not is_redirect and not is_status %}
-                {% if is_status %}{% continue %}{% endif %}
+                {% if not is_status %}
                 {% set dot_class   = 'timeline-dot--system' if is_system else ('timeline-dot--redirect' if is_redirect else 'timeline-dot--note') %}
                 {% set body_class  = 'timeline-body--system' if is_system else ('timeline-body--redirect' if is_redirect else 'timeline-body--note') %}
                 {% set dot_label   = '⚙' if is_system else ('↪' if is_redirect else '✎') %}
+                {% set clean_content = note.content | replace('**', '') %}
                 <div class="timeline-item">
                     <div class="timeline-line"></div>
                     <div class="timeline-dot-col">
@@ -1226,21 +1227,21 @@
                             <span class="timeline-time">{{ note.created_at[:16].replace('T', ' ') if note.created_at else '' }} UTC</span>
                         </div>
                         <div class="timeline-content">
-                            {% set parts = note.content | replace('**', '') | split(' · ') %}
-                            {% if parts | length > 1 %}
+                            {% if ' · ' in clean_content %}
                                 <ul class="timeline-parts">
-                                {% for part in parts %}
+                                {% for part in clean_content.split(' · ') %}
                                     {% if part.strip() %}
                                     <li>{{ part.strip() }}</li>
                                     {% endif %}
                                 {% endfor %}
                                 </ul>
                             {% else %}
-                                {{ note.content | replace('**', '') }}
+                                {{ clean_content }}
                             {% endif %}
                         </div>
                     </div>
                 </div>
+                {% endif %}
                 {% endfor %}
             </div>
             {% endif %}
