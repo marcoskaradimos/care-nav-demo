@@ -588,6 +588,36 @@
 
 .timeline-content strong { color: var(--text-primary); font-weight: 600; }
 
+.timeline-parts {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.timeline-parts li {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.45;
+}
+
+.timeline-parts li::before {
+    content: '';
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.45;
+    margin-top: 6px;
+    flex-shrink: 0;
+}
+
 /* Note input area */
 .note-input-area {
     border-top: 1px solid var(--border);
@@ -1169,7 +1199,20 @@
                             {% endif %}
                             <span class="timeline-time">{{ note.created_at[:16].replace('T', ' ') if note.created_at else '' }} UTC</span>
                         </div>
-                        <div class="timeline-content">{{ note.content | replace('**', '') }}</div>
+                        <div class="timeline-content">
+                            {% set parts = note.content | replace('**', '') | split(' · ') %}
+                            {% if parts | length > 1 %}
+                                <ul class="timeline-parts">
+                                {% for part in parts %}
+                                    {% if part.strip() %}
+                                    <li>{{ part.strip() }}</li>
+                                    {% endif %}
+                                {% endfor %}
+                                </ul>
+                            {% else %}
+                                {{ note.content | replace('**', '') }}
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
                 {% endfor %}

@@ -20,6 +20,9 @@ import demo_flow as df
 
 app = Flask(__name__)
 
+# Jinja2 custom filters
+app.jinja_env.filters['split'] = lambda s, sep=' ': s.split(sep)
+
 # ── Secret Loading ────────────────────────────────────────────────────────────
 def _get_secret(secret_id, fallback_env=None):
     """Load from Secret Manager, fall back to env/dotenv for local dev."""
