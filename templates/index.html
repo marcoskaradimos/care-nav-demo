@@ -91,6 +91,35 @@
                         <button type="button" class="pd-who-btn" id="pdWhoProxy" onclick="setWho('proxy')">Someone else (Proxy)</button>
                     </div>
 
+                    <!-- Proxy fields (shown at top when proxy mode active) -->
+                    <div id="pdProxyFields" style="display:none;">
+                        <div class="pd-proxy-divider">Your Details (Caller)</div>
+                        <div class="pd-field-row">
+                            <div class="pd-field">
+                                <label for="pd-proxy-first">Your First Name *</label>
+                                <input type="text" id="pd-proxy-first" name="proxy_first_name" placeholder="First name" />
+                            </div>
+                            <div class="pd-field">
+                                <label for="pd-proxy-last">Your Last Name *</label>
+                                <input type="text" id="pd-proxy-last" name="proxy_last_name" placeholder="Last name" />
+                            </div>
+                        </div>
+                        <div class="pd-field">
+                            <label for="pd-relationship">Relationship to Patient *</label>
+                            <select id="pd-relationship" name="relationship">
+                                <option value="" disabled selected>Select relationship</option>
+                                <option value="Parent">Parent</option>
+                                <option value="Guardian">Guardian</option>
+                                <option value="Carer">Carer</option>
+                                <option value="Spouse/Partner">Spouse/Partner</option>
+                                <option value="Child">Child</option>
+                                <option value="Sibling">Sibling</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="pd-proxy-divider">Patient Details</div>
+                    </div>
+
                     <!-- Patient fields -->
                     <div class="pd-field-row">
                         <div class="pd-field">
@@ -117,34 +146,6 @@
                     <div class="pd-field">
                         <label for="pd-postcode">Postcode *</label>
                         <input type="text" id="pd-postcode" name="postcode" placeholder="e.g. SW1A 1AA" required />
-                    </div>
-
-                    <!-- Proxy fields (hidden by default) -->
-                    <div id="pdProxyFields" style="display:none;">
-                        <div class="pd-proxy-divider">Proxy / Caller Details</div>
-                        <div class="pd-field-row">
-                            <div class="pd-field">
-                                <label for="pd-proxy-first">Your First Name *</label>
-                                <input type="text" id="pd-proxy-first" name="proxy_first_name" placeholder="First name" />
-                            </div>
-                            <div class="pd-field">
-                                <label for="pd-proxy-last">Your Last Name *</label>
-                                <input type="text" id="pd-proxy-last" name="proxy_last_name" placeholder="Last name" />
-                            </div>
-                        </div>
-                        <div class="pd-field">
-                            <label for="pd-relationship">Relationship to Patient *</label>
-                            <select id="pd-relationship" name="relationship">
-                                <option value="" disabled selected>Select relationship</option>
-                                <option value="Parent">Parent</option>
-                                <option value="Guardian">Guardian</option>
-                                <option value="Carer">Carer</option>
-                                <option value="Spouse/Partner">Spouse/Partner</option>
-                                <option value="Child">Child</option>
-                                <option value="Sibling">Sibling</option>
-                                <option value="Other">Other</option>
-                            </select>
-                        </div>
                     </div>
 
                     <button type="submit" class="pd-submit-btn">Continue</button>
