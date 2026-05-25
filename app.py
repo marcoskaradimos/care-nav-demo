@@ -1196,6 +1196,10 @@ def _create_demo_ticket(confirm_node_id, form_data):
         if proxy_info:
             form_data["_proxy_caller"] = proxy_info
 
+        triage_by = session.get("triage_by_staff", "")
+        if triage_by:
+            form_data["_filled_by_staff"] = triage_by
+
         db = get_db()
         result = db.execute(
             text("""INSERT INTO tickets

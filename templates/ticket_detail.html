@@ -942,6 +942,7 @@
                         {% if selected.postcode %}<span><span style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;">Postcode</span><br>{{ selected.postcode }}</span>{% endif %}
                         {% if selected.gp_practice %}<span><span style="font-size:10px;font-weight:600;color:#9ca3af;text-transform:uppercase;">Practice</span><br>{{ selected.gp_practice }}</span>{% endif %}
                         {% if selected.form_fields and selected.form_fields.get('_proxy_caller') %}<span style="background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:3px 8px;"><span style="font-size:10px;font-weight:600;color:#92400e;text-transform:uppercase;">Proxy Caller</span><br><strong style="color:#92400e;">{{ selected.form_fields['_proxy_caller'] }}</strong></span>{% endif %}
+                        {% if selected.form_fields and selected.form_fields.get('_filled_by_staff') %}<span style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:3px 8px;"><span style="font-size:10px;font-weight:600;color:#1d4ed8;text-transform:uppercase;">Filed by Staff</span><br><strong style="color:#1d4ed8;">{{ selected.form_fields['_filled_by_staff'] }}</strong></span>{% endif %}
                     </div>
                 </div>
             </div>
@@ -1013,6 +1014,7 @@
                         'postcode':            'Postcode',
                         '_last_input':         'Last Input',
                         '_proxy_caller':       'Proxy Caller',
+                        '_filled_by_staff':    'Form Filled in by',
                     } %}
                     {% for key, val in selected.form_fields.items() %}
                     {% if val %}

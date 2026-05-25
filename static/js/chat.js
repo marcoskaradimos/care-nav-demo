@@ -939,7 +939,9 @@ function showFormPanel(fields, nodeId, savedData = {}, formTitle = "") {
         if (field.type !== "select" && field.type !== "checkbox") input.className = "form-input";
         else if (field.type === "select") input.className = "form-input";
         if (field.required) input.required = true;
+        // Prevent browser from injecting "Optional" label on non-required fields
         if (field.placeholder) input.placeholder = field.placeholder;
+        else if (!field.required && (field.type === "text" || field.type === "textarea" || field.type === "long_text")) input.placeholder = " ";
         if (field.maxlength) input.maxLength = field.maxlength;
         if (field.inputmode) input.inputMode = field.inputmode;
         // For numeric-only fields, block non-digit keypresses
