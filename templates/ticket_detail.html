@@ -442,26 +442,123 @@
     word-break: break-word;
 }
 
-/* Notes */
-.note-card {
+/* ── Activity Timeline ── */
+.timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 4px 0 8px 0;
+}
+
+.timeline-item {
+    display: flex;
+    gap: 14px;
+    position: relative;
+}
+
+/* Vertical connector line between items */
+.timeline-item:not(:last-child) .timeline-line {
+    position: absolute;
+    left: 15px;
+    top: 32px;
+    bottom: -2px;
+    width: 2px;
+    background: var(--border);
+    z-index: 0;
+}
+
+.timeline-dot-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    width: 32px;
+    padding-top: 2px;
+}
+
+.timeline-dot {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+    text-transform: uppercase;
+}
+
+.timeline-dot--system {
+    background: #f1f5f9;
+    border: 2px solid #cbd5e1;
+    color: #64748b;
+}
+
+.timeline-dot--user {
+    background: #eff6ff;
+    border: 2px solid #93c5fd;
+    color: #2563eb;
+}
+
+.timeline-dot--note {
+    background: #f0fdf4;
+    border: 2px solid #86efac;
+    color: #16a34a;
+}
+
+.timeline-dot--redirect {
+    background: #fefce8;
+    border: 2px solid #fde047;
+    color: #ca8a04;
+}
+
+.timeline-body {
+    flex: 1;
     background: var(--bg-white);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    padding: 12px 16px;
-    margin-bottom: 10px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    min-width: 0;
 }
 
-.note-card--assignment {
-    background: #f0f7ff;
-    border-color: #bfdbfe;
-    border-left: 4px solid #2563eb;
+.timeline-body--system {
+    background: #f8fafc;
+    border-color: #e2e8f0;
 }
 
-.note-badge-assignment {
+.timeline-body--redirect {
+    background: #fffbeb;
+    border-color: #fde68a;
+}
+
+.timeline-body--note {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+}
+
+.timeline-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    gap: 8px;
+}
+
+.timeline-author {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-transform: capitalize;
+}
+
+.timeline-badge {
     display: inline-flex;
     align-items: center;
-    background: #dbeafe;
-    color: #1d4ed8;
+    gap: 4px;
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -470,30 +567,26 @@
     text-transform: uppercase;
 }
 
-.note-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 6px;
-}
+.timeline-badge--system  { background: #f1f5f9; color: #475569; }
+.timeline-badge--note    { background: #dcfce7; color: #15803d; }
+.timeline-badge--redirect{ background: #fef9c3; color: #854d0e; }
+.timeline-badge--status  { background: #dbeafe; color: #1d4ed8; }
 
-.note-author {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.note-time {
+.timeline-time {
     font-size: 11px;
     color: var(--text-muted);
+    white-space: nowrap;
+    margin-left: auto;
 }
 
-.note-content {
+.timeline-content {
     font-size: 13px;
     color: var(--text-secondary);
-    line-height: 1.5;
-    white-space: pre-wrap;
+    line-height: 1.55;
+    word-break: break-word;
 }
+
+.timeline-content strong { color: var(--text-primary); font-weight: 600; }
 
 /* Note input area */
 .note-input-area {
@@ -509,13 +602,16 @@
 }
 
 .note-tab {
-    padding: 8px 14px;
+    padding: 10px 14px;
     font-size: 12px;
     font-weight: 600;
     color: var(--text-secondary);
     border-bottom: 2px solid transparent;
     cursor: pointer;
     margin-bottom: -1px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .note-tab.active {
@@ -524,17 +620,17 @@
 }
 
 .note-form {
-    padding: 12px 18px;
+    padding: 14px 18px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
 }
 
 .note-textarea {
     width: 100%;
-    min-height: 72px;
+    min-height: 76px;
     padding: 10px 12px;
-    border: 1px solid var(--border);
+    border: 1.5px solid var(--border);
     border-radius: var(--radius-sm);
     font-size: 13px;
     font-family: var(--font);
@@ -542,10 +638,15 @@
     resize: vertical;
     outline: none;
     background: var(--bg-page);
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    line-height: 1.5;
 }
 
-.note-textarea:focus { border-color: var(--primary); background: #fff; }
+.note-textarea:focus {
+    border-color: var(--primary);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
+}
 .note-textarea::placeholder { color: var(--text-muted); }
 
 .note-form-bottom {
@@ -560,7 +661,7 @@
 }
 
 .btn-add-note {
-    padding: 7px 16px;
+    padding: 8px 18px;
     background: var(--primary);
     color: #fff;
     border: none;
@@ -569,18 +670,18 @@
     font-weight: 600;
     font-family: var(--font);
     cursor: pointer;
-    transition: background 0.2s, opacity 0.2s;
+    transition: background 0.2s, opacity 0.2s, box-shadow 0.15s;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
+    letter-spacing: 0.01em;
 }
 
-.btn-add-note:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
+.btn-add-note:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-add-note:not(:disabled):hover {
+    background: var(--primary-dark);
+    box-shadow: 0 2px 8px rgba(37,99,235,0.18);
 }
-
-.btn-add-note:not(:disabled):hover { background: var(--primary-dark); }
 
 /* ═══════════════════════════════════════════════
    RIGHT TICKET DETAILS SIDEBAR
@@ -1034,23 +1135,40 @@
             </div>
             {% endif %}
 
-            <!-- Notes -->
+            <!-- Activity Timeline -->
             {% if notes %}
+            <div class="timeline">
                 {% for note in notes %}
-                {% set is_assignment = note.content.startswith('Assigned to') %}
-                <div class="note-card {% if is_assignment %}note-card--assignment{% endif %}">
-                    <div class="note-card-header">
-                        <div style="display:flex;align-items:center;gap:7px;">
-                            {% if is_assignment %}
-                            <span class="note-badge-assignment">&#8644; Reassigned</span>
-                            {% endif %}
-                            <span class="note-author">{{ note.author }}</span>
-                        </div>
-                        <span class="note-time">{{ note.created_at[:16].replace('T', ' ') if note.created_at else '' }} UTC</span>
+                {% set is_system   = note.author == 'system' %}
+                {% set is_redirect = 'Redirected to' in note.content or 'reset to' in note.content %}
+                {% set is_note     = not is_system and not is_redirect and 'Status changed' not in note.content and 'Assigned' not in note.content %}
+                {% set dot_class   = 'timeline-dot--system' if is_system else ('timeline-dot--redirect' if is_redirect else ('timeline-dot--note' if is_note else 'timeline-dot--user')) %}
+                {% set body_class  = 'timeline-body--system' if is_system else ('timeline-body--redirect' if is_redirect else ('timeline-body--note' if is_note else '')) %}
+                {% set dot_label   = '⚙' if is_system else ('↪' if is_redirect else ('✎' if is_note else note.author[0])) %}
+                <div class="timeline-item">
+                    <div class="timeline-line"></div>
+                    <div class="timeline-dot-col">
+                        <div class="timeline-dot {{ dot_class }}">{{ dot_label }}</div>
                     </div>
-                    <div class="note-content">{{ note.content | replace('**', '') | replace('Assigned to ', '') }}</div>
+                    <div class="timeline-body {{ body_class }}">
+                        <div class="timeline-header">
+                            <span class="timeline-author">{{ 'System' if is_system else note.author }}</span>
+                            {% if is_system %}
+                            <span class="timeline-badge timeline-badge--system">System</span>
+                            {% elif is_redirect %}
+                            <span class="timeline-badge timeline-badge--redirect">↪ Redirected</span>
+                            {% elif is_note %}
+                            <span class="timeline-badge timeline-badge--note">✎ Note</span>
+                            {% elif 'Status changed' in note.content %}
+                            <span class="timeline-badge timeline-badge--status">Status</span>
+                            {% endif %}
+                            <span class="timeline-time">{{ note.created_at[:16].replace('T', ' ') if note.created_at else '' }} UTC</span>
+                        </div>
+                        <div class="timeline-content">{{ note.content | replace('**', '') }}</div>
+                    </div>
                 </div>
                 {% endfor %}
+            </div>
             {% endif %}
 
         </div><!-- /ticket-body -->
@@ -1058,7 +1176,10 @@
         <!-- Note input -->
         <div class="note-input-area">
             <div class="note-tabs">
-                <div class="note-tab active">Internal Note</div>
+                <div class="note-tab active">
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 12V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+                    Internal Note
+                </div>
             </div>
             <form class="note-form" method="POST" action="{{ url_for('ticket_note', ticket_id=selected.id) }}" id="note-form">
                 <input type="hidden" name="list_status" value="{{ filters.status }}">
