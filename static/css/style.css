@@ -1967,23 +1967,23 @@ html, body {
 
 /* ===== NHS Guidance Button (inside self-care bubble) ===== */
 .nhs-guidance-btn {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 10px;
-    margin-top: 14px;
-    padding: 10px 14px;
+    gap: 7px;
+    margin-top: 10px;
+    padding: 5px 10px 5px 5px;
     background: #fff;
-    border: 1.5px solid #005eb8;
-    border-radius: 10px;
+    border: 1px solid #c7d9f0;
+    border-radius: 8px;
     text-decoration: none;
     color: #005eb8;
-    font-size: 0.88rem;
+    font-size: 0.78rem;
     font-weight: 600;
     transition: background 0.15s, border-color 0.15s;
 }
 .nhs-guidance-btn:hover {
-    background: #e8f0fb;
-    border-color: #003f80;
+    background: #eef4fd;
+    border-color: #005eb8;
     color: #003f80;
 }
 .nhs-logo-badge {
@@ -1992,11 +1992,11 @@ html, body {
     justify-content: center;
     background: #005eb8;
     color: #fff;
-    font-size: 0.75rem;
+    font-size: 0.65rem;
     font-weight: 800;
     letter-spacing: 0.04em;
-    padding: 3px 8px;
-    border-radius: 5px;
+    padding: 2px 5px;
+    border-radius: 4px;
     flex-shrink: 0;
 }
 .nhs-guidance-label {
