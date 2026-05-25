@@ -1242,7 +1242,7 @@ def _create_demo_ticket(confirm_node_id, form_data):
         ticket_id_new = result.fetchone()[0]
         db.execute(
             text("INSERT INTO notes (ticket_id, author, content, created_at) VALUES (:tid, :auth, :content, :now)"),
-            {"tid": ticket_id_new, "auth": "system", "content": f"Ticket created · routed to **{inbox}** · match status: **{match_status}**", "now": now}
+            {"tid": ticket_id_new, "auth": "system", "content": f"Ticket created", "now": now}
         )
         db.commit()
         db.close()
