@@ -1,0 +1,609 @@
+{% extends "base.html" %}
+{% block title %}Staff Triage — LineIn{% endblock %}
+
+{% block head %}
+<style>
+/* ── Triage Page Layout ─────────────────────────────────────────── */
+.triage-page {
+    min-height: calc(100vh - 56px);
+    background: #f3f4f6;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 48px 16px;
+}
+
+.triage-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+    padding: 40px 44px;
+    width: 100%;
+    max-width: 560px;
+}
+
+.triage-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: #111;
+    margin: 0 0 4px;
+}
+
+.triage-subtitle {
+    font-size: 14px;
+    color: #6b7280;
+    margin: 0 0 28px;
+}
+
+/* ── Mode toggle ────────────────────────────────────────────────── */
+.triage-toggle {
+    display: flex;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 28px;
+}
+
+.triage-toggle-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    background: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    color: #6b7280;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.triage-toggle-btn.active {
+    background: #2563eb;
+    color: #fff;
+}
+
+/* ── Section label ──────────────────────────────────────────────── */
+.triage-section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #9ca3af;
+    margin-bottom: 10px;
+}
+
+/* ── Search box ─────────────────────────────────────────────────── */
+.triage-search-wrap {
+    position: relative;
+    margin-bottom: 8px;
+}
+
+.triage-search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #9ca3af;
+    pointer-events: none;
+}
+
+.triage-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 11px 12px 11px 38px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    font-size: 14px;
+    color: #111;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.triage-search-input:focus { border-color: #2563eb; }
+
+.triage-search-input::placeholder { color: #9ca3af; }
+
+/* ── Results dropdown ───────────────────────────────────────────── */
+.triage-results {
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 16px;
+    display: none;
+}
+
+.triage-result-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: background 0.12s;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.triage-result-item:last-child { border-bottom: none; }
+.triage-result-item:hover { background: #f8fafc; }
+.triage-result-item.selected { background: #eff6ff; }
+
+.triage-result-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.triage-result-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #111;
+}
+
+.triage-result-meta {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 1px;
+}
+
+.triage-no-results {
+    padding: 16px 14px;
+    font-size: 13px;
+    color: #9ca3af;
+    text-align: center;
+}
+
+/* ── Selected patient card ──────────────────────────────────────── */
+.triage-selected-card {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    background: #eff6ff;
+    border: 1.5px solid #bfdbfe;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+.triage-selected-card.visible { display: flex; }
+
+.triage-selected-info { flex: 1; min-width: 0; }
+
+.triage-selected-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1d4ed8;
+}
+
+.triage-selected-meta {
+    font-size: 12px;
+    color: #3b82f6;
+    margin-top: 2px;
+}
+
+.triage-selected-clear {
+    background: none;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+}
+
+.triage-selected-clear:hover { background: #dbeafe; color: #1d4ed8; }
+
+/* ── Proxy fields ───────────────────────────────────────────────── */
+.triage-proxy-fields {
+    display: none;
+    border-top: 1.5px solid #f3f4f6;
+    padding-top: 24px;
+    margin-top: 4px;
+}
+
+.triage-proxy-fields.visible { display: block; }
+
+.triage-field {
+    margin-bottom: 16px;
+}
+
+.triage-field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 6px;
+}
+
+.triage-field input,
+.triage-field select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 9px;
+    font-size: 14px;
+    color: #111;
+    outline: none;
+    transition: border-color 0.15s;
+    background: #fff;
+}
+
+.triage-field input:focus,
+.triage-field select:focus { border-color: #2563eb; }
+
+.triage-field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+/* ── Divider ────────────────────────────────────────────────────── */
+.triage-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 24px 0 20px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #9ca3af;
+}
+
+.triage-divider::before,
+.triage-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: #f3f4f6;
+}
+
+/* ── Continue button ────────────────────────────────────────────── */
+.triage-continue-btn {
+    width: 100%;
+    padding: 13px;
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: background 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.triage-continue-btn:hover { background: #1d4ed8; }
+.triage-continue-btn:disabled { background: #d1d5db; cursor: not-allowed; }
+
+/* ── Avatar colors ──────────────────────────────────────────────── */
+.av-0 { background:#e74c3c; } .av-1 { background:#e67e22; }
+.av-2 { background:#f1c40f; } .av-3 { background:#2ecc71; }
+.av-4 { background:#1abc9c; } .av-5 { background:#3498db; }
+.av-6 { background:#9b59b6; } .av-7 { background:#e91e63; }
+
+/* ── Hint text ──────────────────────────────────────────────────── */
+.triage-hint {
+    font-size: 12px;
+    color: #9ca3af;
+    margin-top: -4px;
+    margin-bottom: 16px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="triage-page">
+    <div class="triage-card">
+        <h2 class="triage-title">Staff Triage</h2>
+        <p class="triage-subtitle">Search for a patient to begin a triage session on their behalf.</p>
+
+        <!-- Mode toggle -->
+        <div class="triage-toggle">
+            <button type="button" class="triage-toggle-btn active" id="btnPatient" onclick="setMode('patient')">Patient Call</button>
+            <button type="button" class="triage-toggle-btn" id="btnProxy" onclick="setMode('proxy')">Proxy Call</button>
+        </div>
+
+        <form id="triageForm" method="POST" action="{{ url_for('staff_triage') }}">
+            <input type="hidden" name="is_proxy" id="isProxyInput" value="0" />
+            <input type="hidden" name="patient_id"   id="hidPatientId" />
+            <input type="hidden" name="first_name"   id="hidFirstName" />
+            <input type="hidden" name="last_name"    id="hidLastName" />
+            <input type="hidden" name="dob"          id="hidDob" />
+            <input type="hidden" name="phone"        id="hidPhone" />
+            <input type="hidden" name="nhs_number"   id="hidNhs" />
+            <input type="hidden" name="postcode"     id="hidPostcode" />
+            <input type="hidden" name="gp_practice"  id="hidPractice" />
+
+            <!-- Patient search -->
+            <p class="triage-section-label" id="patientSearchLabel">Search Patient</p>
+            <div class="triage-search-wrap">
+                <span class="triage-search-icon">
+                    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                        <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </span>
+                <input
+                    type="text"
+                    id="patientSearch"
+                    class="triage-search-input"
+                    placeholder="Search by name, NHS number or date of birth…"
+                    autocomplete="off"
+                />
+            </div>
+            <p class="triage-hint" id="searchHint">Min. 2 characters to search</p>
+
+            <!-- Results -->
+            <div class="triage-results" id="patientResults"></div>
+
+            <!-- Selected patient -->
+            <div class="triage-selected-card" id="selectedPatientCard">
+                <div class="triage-result-avatar av-0" id="selectedAvatar"></div>
+                <div class="triage-selected-info">
+                    <div class="triage-selected-name" id="selectedName"></div>
+                    <div class="triage-selected-meta" id="selectedMeta"></div>
+                </div>
+                <button type="button" class="triage-selected-clear" onclick="clearPatient()" title="Clear selection">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Proxy fields (hidden unless proxy mode) -->
+            <div class="triage-proxy-fields" id="proxyFields">
+                <div class="triage-divider">Proxy / Caller Details</div>
+                <p class="triage-section-label">Search Proxy Caller</p>
+                <div class="triage-search-wrap">
+                    <span class="triage-search-icon">
+                        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+                            <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M10.5 10.5L13.5 13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </span>
+                    <input
+                        type="text"
+                        id="proxySearch"
+                        class="triage-search-input"
+                        placeholder="Search by name, NHS number…"
+                        autocomplete="off"
+                    />
+                </div>
+                <p class="triage-hint">Or enter manually below</p>
+
+                <!-- Proxy results -->
+                <div class="triage-results" id="proxyResults"></div>
+
+                <!-- Proxy selected card -->
+                <div class="triage-selected-card" id="selectedProxyCard">
+                    <div class="triage-result-avatar av-3" id="selectedProxyAvatar"></div>
+                    <div class="triage-selected-info">
+                        <div class="triage-selected-name" id="selectedProxyName"></div>
+                        <div class="triage-selected-meta" id="selectedProxyMeta">Proxy caller</div>
+                    </div>
+                    <button type="button" class="triage-selected-clear" onclick="clearProxy()" title="Clear">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <input type="hidden" name="proxy_first_name" id="hidProxyFirst" />
+                <input type="hidden" name="proxy_last_name"  id="hidProxyLast" />
+
+                <div class="triage-field-row" id="proxyManualFields">
+                    <div class="triage-field">
+                        <label for="proxyFirstName">First Name *</label>
+                        <input type="text" id="proxyFirstName" placeholder="First name" oninput="syncProxyManual()" />
+                    </div>
+                    <div class="triage-field">
+                        <label for="proxyLastName">Last Name *</label>
+                        <input type="text" id="proxyLastName" placeholder="Last name" oninput="syncProxyManual()" />
+                    </div>
+                </div>
+                <div class="triage-field">
+                    <label for="proxyRelationship">Relationship to Patient *</label>
+                    <select id="proxyRelationship" name="relationship">
+                        <option value="" disabled selected>Select relationship</option>
+                        <option>Parent</option>
+                        <option>Guardian</option>
+                        <option>Carer</option>
+                        <option>Spouse/Partner</option>
+                        <option>Child</option>
+                        <option>Sibling</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+            </div>
+
+            <button type="submit" class="triage-continue-btn" id="continueBtn" disabled>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Start Triage Session
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+const AVATAR_COLORS = ['#e74c3c','#e67e22','#f1c40f','#2ecc71','#1abc9c','#3498db','#9b59b6','#e91e63'];
+function avatarColor(name) {
+    if (!name) return AVATAR_COLORS[0];
+    let h = 0;
+    for (let c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+function initials(name) {
+    const p = name.trim().split(/\s+/);
+    return p.length >= 2 ? (p[0][0] + p[p.length-1][0]).toUpperCase() : name.slice(0,2).toUpperCase();
+}
+
+let mode = "patient";
+let selectedPatient = null;
+let selectedProxy   = null;
+
+function setMode(m) {
+    mode = m;
+    document.getElementById("btnPatient").classList.toggle("active", m === "patient");
+    document.getElementById("btnProxy").classList.toggle("active",   m === "proxy");
+    document.getElementById("isProxyInput").value = m === "proxy" ? "1" : "0";
+    document.getElementById("proxyFields").classList.toggle("visible", m === "proxy");
+    document.getElementById("patientSearchLabel").textContent = m === "proxy" ? "Search Patient" : "Search Patient";
+    checkReady();
+}
+
+function checkReady() {
+    const patientOk = !!selectedPatient;
+    const proxyOk   = mode === "patient" || (
+        (document.getElementById("proxyFirstName").value.trim() || (selectedProxy && selectedProxy.first_name)) &&
+        document.getElementById("proxyRelationship").value
+    );
+    document.getElementById("continueBtn").disabled = !(patientOk && proxyOk);
+}
+
+// ── Patient search ───────────────────────────────────────────────
+let patientTimer;
+document.getElementById("patientSearch").addEventListener("input", function() {
+    clearTimeout(patientTimer);
+    const q = this.value.trim();
+    if (q.length < 2) {
+        document.getElementById("patientResults").style.display = "none";
+        document.getElementById("searchHint").style.display = "";
+        return;
+    }
+    document.getElementById("searchHint").style.display = "none";
+    patientTimer = setTimeout(() => runSearch(q, "patientResults", selectPatient), 250);
+});
+
+// ── Proxy search ─────────────────────────────────────────────────
+let proxyTimer;
+document.getElementById("proxySearch").addEventListener("input", function() {
+    clearTimeout(proxyTimer);
+    const q = this.value.trim();
+    if (q.length < 2) { document.getElementById("proxyResults").style.display = "none"; return; }
+    proxyTimer = setTimeout(() => runSearch(q, "proxyResults", selectProxy), 250);
+});
+
+async function runSearch(q, containerId, onSelect) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = `<div class="triage-no-results">Searching…</div>`;
+    container.style.display = "block";
+    try {
+        const resp = await fetch(`/patient/search?q=${encodeURIComponent(q)}`);
+        const data = await resp.json();
+        renderResults(data.results || [], container, onSelect);
+    } catch(e) {
+        container.innerHTML = `<div class="triage-no-results">Search failed. Try again.</div>`;
+    }
+}
+
+function renderResults(results, container, onSelect) {
+    if (!results.length) {
+        container.innerHTML = `<div class="triage-no-results">No patients found</div>`;
+        return;
+    }
+    container.innerHTML = results.map((p, i) => {
+        const name = `${p.first_name} ${p.last_name}`;
+        const color = avatarColor(name);
+        const meta = [p.dob && `DOB: ${p.dob}`, p.nhs && p.nhs !== "—" && `NHS: ${p.nhs}`, p.postcode && p.postcode].filter(Boolean).join(" · ");
+        return `<div class="triage-result-item" onclick='onSelect(${JSON.stringify(p)})'>
+            <div class="triage-result-avatar" style="background:${color}">${initials(name)}</div>
+            <div>
+                <div class="triage-result-name">${name}</div>
+                <div class="triage-result-meta">${meta}</div>
+            </div>
+        </div>`;
+    }).join("");
+}
+
+function selectPatient(p) {
+    selectedPatient = p;
+    const name = `${p.first_name} ${p.last_name}`;
+    const color = avatarColor(name);
+    const meta = [p.dob && `DOB: ${p.dob}`, p.nhs && p.nhs !== "—" && `NHS: ${p.nhs}`, p.postcode && p.postcode, p.practice && p.practice].filter(Boolean).join(" · ");
+
+    document.getElementById("selectedAvatar").style.background = color;
+    document.getElementById("selectedAvatar").textContent = initials(name);
+    document.getElementById("selectedName").textContent = name;
+    document.getElementById("selectedMeta").textContent = meta;
+    document.getElementById("selectedPatientCard").classList.add("visible");
+    document.getElementById("patientResults").style.display = "none";
+    document.getElementById("patientSearch").value = "";
+
+    // populate hidden fields
+    document.getElementById("hidPatientId").value  = p.id || "";
+    document.getElementById("hidFirstName").value  = p.first_name || "";
+    document.getElementById("hidLastName").value   = p.last_name  || "";
+    document.getElementById("hidDob").value        = p.dob        || "";
+    document.getElementById("hidPhone").value      = p.phone      || "";
+    document.getElementById("hidNhs").value        = (p.nhs && p.nhs !== "—") ? p.nhs : "";
+    document.getElementById("hidPostcode").value   = p.postcode   || "";
+    document.getElementById("hidPractice").value   = p.practice   || "";
+    checkReady();
+}
+
+function clearPatient() {
+    selectedPatient = null;
+    document.getElementById("selectedPatientCard").classList.remove("visible");
+    ["hidPatientId","hidFirstName","hidLastName","hidDob","hidPhone","hidNhs","hidPostcode","hidPractice"]
+        .forEach(id => document.getElementById(id).value = "");
+    checkReady();
+}
+
+function selectProxy(p) {
+    selectedProxy = p;
+    const name = `${p.first_name} ${p.last_name}`;
+    const color = avatarColor(name);
+    document.getElementById("selectedProxyAvatar").style.background = color;
+    document.getElementById("selectedProxyAvatar").textContent = initials(name);
+    document.getElementById("selectedProxyName").textContent = name;
+    document.getElementById("selectedProxyCard").classList.add("visible");
+    document.getElementById("proxyResults").style.display = "none";
+    document.getElementById("proxySearch").value = "";
+
+    // fill manual fields
+    document.getElementById("proxyFirstName").value = p.first_name || "";
+    document.getElementById("proxyLastName").value  = p.last_name  || "";
+    document.getElementById("hidProxyFirst").value  = p.first_name || "";
+    document.getElementById("hidProxyLast").value   = p.last_name  || "";
+    checkReady();
+}
+
+function clearProxy() {
+    selectedProxy = null;
+    document.getElementById("selectedProxyCard").classList.remove("visible");
+    document.getElementById("proxyFirstName").value = "";
+    document.getElementById("proxyLastName").value  = "";
+    document.getElementById("hidProxyFirst").value  = "";
+    document.getElementById("hidProxyLast").value   = "";
+    checkReady();
+}
+
+function syncProxyManual() {
+    document.getElementById("hidProxyFirst").value = document.getElementById("proxyFirstName").value;
+    document.getElementById("hidProxyLast").value  = document.getElementById("proxyLastName").value;
+    checkReady();
+}
+
+document.getElementById("proxyRelationship").addEventListener("change", checkReady);
+
+document.getElementById("triageForm").addEventListener("submit", function(e) {
+    if (!selectedPatient) { e.preventDefault(); return; }
+    // sync proxy manual fields before submit
+    document.getElementById("hidProxyFirst").value = document.getElementById("proxyFirstName").value;
+    document.getElementById("hidProxyLast").value  = document.getElementById("proxyLastName").value;
+});
+</script>
+{% endblock %}

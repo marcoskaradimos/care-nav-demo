@@ -61,12 +61,20 @@ async function submitPatientDetails(e) {
 
     // Try to match / create session
     const payload = { first_name: firstName, last_name: lastName, dob, phone, nhs_number: nhsNumber, postcode };
+    let matchedPhone = phone, matchedPostcode = postcode, matchedNhs = nhsNumber, matchedPractice = "";
     try {
-        await fetch("/patient/match", {
+        const matchResp = await fetch("/patient/match", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
         });
+        const matchData = await matchResp.json();
+        if (matchData.status === "matched" && matchData.patient) {
+            matchedPhone    = matchData.patient.phone    || phone;
+            matchedPostcode = matchData.patient.postcode || postcode;
+            matchedNhs      = matchData.patient.nhs      || nhsNumber;
+            matchedPractice = matchData.patient.practice || "";
+        }
     } catch (err) { /* non-blocking */ }
 
     const proxyFirst    = (data.get("proxy_first_name") || "").trim();
@@ -75,7 +83,7 @@ async function submitPatientDetails(e) {
 
     patientDetails = {
         name: fullName, first_name: firstName, last_name: lastName,
-        dob, phone, nhs_number: nhsNumber, postcode, practice: "",
+        dob, phone: matchedPhone, nhs_number: matchedNhs, postcode: matchedPostcode, practice: matchedPractice,
         proxy_first_name: proxyFirst, proxy_last_name: proxyLast, relationship,
         is_proxy: proxyMode,
     };
@@ -91,7 +99,7 @@ async function submitPatientDetails(e) {
         } catch (err) { /* non-blocking */ }
     }
 
-    _proceedToChat(fullName, dob, phone || "—", nhsNumber || "—", postcode || "—", "—", proxyMode);
+    _proceedToChat(fullName, dob, matchedPhone || "—", matchedNhs || "—", matchedPostcode || "—", matchedPractice || "—", proxyMode);
 }
 
 function _proceedToChat(name, dob, phone, nhs, postcode, practice, isProxy) {
@@ -137,6 +145,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const detailsForm = document.getElementById("patientDetailsForm");
     if (detailsForm) detailsForm.addEventListener("submit", submitPatientDetails);
 
+    // Auto-start if arriving from staff triage (session already populated server-side)
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("staff_triage") === "1" && window.STAFF_TRIAGE_PATIENT) {
+        const p = window.STAFF_TRIAGE_PATIENT;
+        proxyMode = p.is_proxy;
+        patientDetails = {
+            name: p.name, first_name: p.first_name, last_name: p.last_name,
+            dob: p.dob, phone: p.phone, nhs_number: p.nhs, postcode: p.postcode,
+            practice: p.practice,
+            proxy_first_name: p.proxy_first, proxy_last_name: p.proxy_last,
+            relationship: p.proxy_relationship, is_proxy: p.is_proxy,
+        };
+        _proceedToChat(p.name, p.dob, p.phone || "—", p.nhs || "—", p.postcode || "—", p.practice || "—", p.is_proxy);
+    }
 });
 
 function setupInputHandlers() {

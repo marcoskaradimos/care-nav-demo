@@ -337,12 +337,15 @@ def _score_candidate(fn, ln, dob_norm, pc, nhs, pfn, pln, pdob, ppc, pnhs):
     return score
 
 def match_patient(first_name, last_name, dob, postcode, nhs_number=""):
+    """Match against patients.json only (the authoritative source).
+    The registered_patients DB table is intentionally excluded from matching
+    because it may contain stale or incomplete records."""
     fn       = first_name.strip().lower()
     ln       = last_name.strip().lower()
     dob_norm = _norm_dob(dob)
     pc       = postcode.strip().upper().replace(" ", "")
     nhs      = nhs_number.strip().replace(" ", "")
-    best, best_score, best_source = None, 0.0, None
+    best, best_score = None, 0.0
 
     for p in load_patients():
         pfn  = p["first_name"].strip().lower()
@@ -352,34 +355,7 @@ def match_patient(first_name, last_name, dob, postcode, nhs_number=""):
         pnhs = p["nhs_number"].strip().replace(" ", "")
         score = _score_candidate(fn, ln, dob_norm, pc, nhs, pfn, pln, pdob, ppc, pnhs)
         if score > best_score:
-            best_score, best, best_source = score, p, "json"
-
-    try:
-        db   = get_db()
-        rows = db.execute(text("SELECT * FROM registered_patients")).mappings().fetchall()
-        db.close()
-        for p in rows:
-            p    = dict(p)
-            pfn  = (p.get("first_name") or "").strip().lower()
-            pln  = (p.get("last_name")  or "").strip().lower()
-            pdob = _norm_dob(p.get("dob", ""))
-            ppc  = (p.get("postcode") or "").strip().upper().replace(" ", "")
-            pnhs = (p.get("nhs_number") or "").strip().replace(" ", "")
-            score = _score_candidate(fn, ln, dob_norm, pc, nhs, pfn, pln, pdob, ppc, pnhs)
-            if score > best_score:
-                best_score, best_source = score, "db"
-                best = {
-                    "id":            f"reg_{p['id']}",
-                    "first_name":    p["first_name"],
-                    "last_name":     p["last_name"],
-                    "date_of_birth": pdob,
-                    "nhs_number":    p.get("nhs_number", ""),
-                    "telephone":     p.get("phone", ""),
-                    "postcode":      p.get("postcode", ""),
-                    "gp_practice":   p.get("gp_practice", ""),
-                }
-    except Exception:
-        pass
+            best_score, best = score, p
 
     if best_score >= 7.0:
         return best, "matched"
@@ -748,6 +724,46 @@ def staff_logout():
 def index():
     return render_template("index.html")
 
+
+@app.route("/staff/triage", methods=["GET", "POST"])
+@staff_required
+def staff_triage():
+    if request.method == "POST":
+        first_name  = request.form.get("first_name", "").strip()
+        last_name   = request.form.get("last_name",  "").strip()
+        dob         = request.form.get("dob", "").strip()
+        phone       = request.form.get("phone", "").strip()
+        nhs_number  = request.form.get("nhs_number", "").strip()
+        postcode    = request.form.get("postcode", "").strip()
+        gp_practice = request.form.get("gp_practice", "").strip()
+        patient_id  = request.form.get("patient_id", "").strip()
+        is_proxy    = request.form.get("is_proxy", "0") == "1"
+
+        # Set patient session — same keys as /patient/match
+        session["patient_first_name"] = first_name
+        session["patient_last_name"]  = last_name
+        session["patient_dob"]        = dob
+        session["patient_phone"]      = phone
+        session["patient_nhs"]        = nhs_number
+        session["patient_postcode"]   = postcode
+        session["patient_practice"]   = gp_practice
+        session["patient_name"]       = f"{first_name} {last_name}".strip()
+        session["matched_patient_id"] = patient_id
+        session["triage_by_staff"]    = session.get("staff_username", "")
+
+        if is_proxy:
+            session["proxy_first_name"]   = request.form.get("proxy_first_name", "").strip()
+            session["proxy_last_name"]    = request.form.get("proxy_last_name",  "").strip()
+            session["proxy_relationship"] = request.form.get("relationship", "").strip()
+        else:
+            session.pop("proxy_first_name",   None)
+            session.pop("proxy_last_name",    None)
+            session.pop("proxy_relationship", None)
+
+        return redirect(url_for("index") + "?staff_triage=1")
+
+    return render_template("triage.html", nav_counts=get_nav_counts(), teams=TEAMS)
+
 @app.route("/patient/match", methods=["POST"])
 def patient_match():
     data        = request.get_json() or {}
@@ -777,16 +793,16 @@ def patient_match():
         session["matched_patient_id"] = patient["id"]
         session["patient_name"]       = f"{patient['first_name']} {patient['last_name']}"
         session["patient_nhs"]        = patient["nhs_number"]
-        session["patient_phone"]      = patient.get("telephone", phone)
-        session["patient_postcode"]   = patient.get("postcode", postcode)
-        session["patient_practice"]   = patient.get("gp_practice", "")
+        session["patient_phone"]      = patient.get("telephone") or phone
+        session["patient_postcode"]   = patient.get("postcode") or postcode
+        session["patient_practice"]   = patient.get("gp_practice") or ""
         return jsonify({"status": "matched", "patient": {
             "name":     f"{patient['first_name']} {patient['last_name']}",
             "nhs":      patient["nhs_number"],
             "dob":      patient["date_of_birth"],
-            "phone":    patient.get("telephone", phone),
-            "postcode": patient.get("postcode", postcode),
-            "practice": patient.get("gp_practice", ""),
+            "phone":    patient.get("telephone") or phone,
+            "postcode": patient.get("postcode") or postcode,
+            "practice": patient.get("gp_practice") or "",
         }})
     elif patient and confidence == "partial":
         session["matched_patient_id"] = None
@@ -1115,13 +1131,19 @@ def _create_demo_ticket(confirm_node_id, form_data):
         match_status = "unverified"
         matched, confidence = match_patient(first, last, dob, postcode, nhs_number)
         if matched and confidence == "matched":
-            match_status  = "verified"
-            patient_name  = f"{matched['first_name']} {matched['last_name']}"
-            nhs_number    = matched.get("nhs_number", nhs_number)
-            dob           = matched.get("date_of_birth", dob)
-            phone         = matched.get("telephone", phone)
-            postcode      = matched.get("postcode", postcode)
-            gp_practice   = matched.get("gp_practice", gp_practice)
+            match_status = "verified"
+            if matched.get("first_name") and matched.get("last_name"):
+                patient_name = f"{matched['first_name']} {matched['last_name']}"
+            if matched.get("nhs_number"):
+                nhs_number = matched["nhs_number"]
+            if matched.get("date_of_birth"):
+                dob = matched["date_of_birth"]
+            if matched.get("telephone"):
+                phone = matched["telephone"]
+            if matched.get("postcode"):
+                postcode = matched["postcode"]
+            if matched.get("gp_practice"):
+                gp_practice = matched["gp_practice"]
         elif matched and confidence == "partial":
             match_status = "partial"
 

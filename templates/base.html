@@ -139,7 +139,7 @@
             <a href="{{ url_for('staff_login') }}" class="nav-logout" style="margin-left:auto;">Staff Login</a>
             {% endif %}
 
-            {% if staff_authenticated and request.endpoint in ('inbox', 'ticket_detail', 'dashboard') %}
+            {% if staff_authenticated and request.endpoint in ('inbox', 'ticket_detail', 'dashboard', 'staff_triage') %}
             <div class="nav-triage-wrap">
                 <div class="nav-triage-grid">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -149,18 +149,18 @@
                         <rect x="9" y="9" width="5" height="5" rx="1.2" fill="currentColor"/>
                     </svg>
                 </div>
-                <a href="{{ url_for('index') }}" class="nav-triage-btn">Triage</a>
+                <a href="{{ url_for('staff_triage') }}" class="nav-triage-btn">Triage</a>
                 <div class="nav-triage-dropdown">
-                    <a href="{{ url_for('index') }}">
+                    <a href="{{ url_for('staff_triage') }}">
                         <div class="nav-triage-dropdown-icon">
                             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                                <path d="M2 4a1 1 0 011-1h10a1 1 0 011 1v7a1 1 0 01-1 1H3a1 1 0 01-1-1V4z" stroke="currentColor" stroke-width="1.5"/>
-                                <path d="M2 4l6 5 6-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                <circle cx="8" cy="6" r="3" stroke="currentColor" stroke-width="1.5"/>
+                                <path d="M2 14c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                             </svg>
                         </div>
                         <div>
                             <div class="nav-triage-dropdown-title">Triage</div>
-                            <div class="nav-triage-dropdown-sub">Patient triage chatbot</div>
+                            <div class="nav-triage-dropdown-sub">Start a patient triage session</div>
                         </div>
                     </a>
                 </div>

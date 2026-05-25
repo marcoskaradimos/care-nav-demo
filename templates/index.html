@@ -312,7 +312,25 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/chat.js') }}?v=13"></script>
+{% if request.args.get('staff_triage') == '1' and session.get('patient_name') %}
+<script>
+window.STAFF_TRIAGE_PATIENT = {
+    name:               {{ session.get('patient_name','') | tojson }},
+    first_name:         {{ session.get('patient_first_name','') | tojson }},
+    last_name:          {{ session.get('patient_last_name','') | tojson }},
+    dob:                {{ session.get('patient_dob','') | tojson }},
+    phone:              {{ session.get('patient_phone','') | tojson }},
+    nhs:                {{ session.get('patient_nhs','') | tojson }},
+    postcode:           {{ session.get('patient_postcode','') | tojson }},
+    practice:           {{ session.get('patient_practice','') | tojson }},
+    is_proxy:           {{ (session.get('proxy_first_name','') != '') | tojson }},
+    proxy_first:        {{ session.get('proxy_first_name','') | tojson }},
+    proxy_last:         {{ session.get('proxy_last_name','') | tojson }},
+    proxy_relationship: {{ session.get('proxy_relationship','') | tojson }},
+};
+</script>
+{% endif %}
+<script src="{{ url_for('static', filename='js/chat.js') }}?v=15"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function() {
         const trigger = document.getElementById("nonUrgentTrigger");
