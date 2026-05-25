@@ -988,17 +988,45 @@
                     </button>
                 </div>
                 <div class="form-responses-card-body" id="formResponsesBody">
+                    {% set field_labels = {
+                        'symptom_description': 'Reason for Calling',
+                        'symptom_duration':    'Duration',
+                        'symptom_character':   'Description',
+                        'symptom_severity':    'Pain Score',
+                        'symptom_triggers':    'Better / Worse',
+                        'symptom_history':     'Medical History / Medications',
+                        'preferred_time':      'Preferred Appointment Time',
+                        'blood_test_type':     'Blood Test Type',
+                        'other_blood_test':    'Other Blood Test',
+                        'reason':              'Reason',
+                        'gp_requested':        'Requested By',
+                        'medication_name':     'Medication',
+                        'medication_dose':     'Dose',
+                        'query_details':       'Query Details',
+                        'cert_type':           'Certificate Type',
+                        'cert_reason':         'Certificate Reason',
+                        'enquiry_details':     'Enquiry Details',
+                        'patient_name':        'Patient Name',
+                        'nhs_number':          'NHS Number',
+                        'dob':                 'Date of Birth',
+                        'phone':               'Phone',
+                        'postcode':            'Postcode',
+                        '_last_input':         'Last Input',
+                        '_proxy_caller':       'Proxy Caller',
+                    } %}
                     {% for key, val in selected.form_fields.items() %}
+                    {% if val %}
                     <div class="form-field-row">
-                        <span class="form-field-label">{{ key | replace('_', ' ') | title }}:</span>
+                        <span class="form-field-label">{{ field_labels.get(key, key | replace('_', ' ') | title) }}:</span>
                         <span class="form-field-value">
                             {% if val is iterable and val is not string %}
                                 {{ val | join(', ') }}
                             {% else %}
-                                {{ val or '—' }}
+                                {{ val }}
                             {% endif %}
                         </span>
                     </div>
+                    {% endif %}
                     {% endfor %}
                 </div>
             </div>

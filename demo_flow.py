@@ -289,7 +289,7 @@ def next_node_for_option(current_node_id, option_id):
 
 CONFIRMATION_INBOXES = {
     "nurse_confirmation":        ("Nurse Appointment",   "Nurse Appointment"),
-    "doctor_confirmation":       ("Doctor Appointment",  "Clinical Triage"),
+    "doctor_confirmation":       ("Doctor Appointment",  "Unassigned"),
     "repeat_med_confirmation":   ("Repeat Prescription", "Pharmacist"),
     "admin_confirmation":        ("Admin Query",          "Admin"),
     "med_cert_confirmation":     ("Medical Certificate",  "Medical Certificate"),
