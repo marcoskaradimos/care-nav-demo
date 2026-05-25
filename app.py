@@ -971,12 +971,12 @@ def flow_step():
         elif option_id == "opt_self_care_dr":
             symptom = session.get("demo_symptom", "your symptoms")
             advice  = _self_care_advice(symptom)
-            return jsonify({"node_id": "self_care_result", "type": "end", "message": advice, "options": [], "fields": [], "is_end": True})
+            return jsonify({"node_id": "self_care_result", "type": "end", "message": advice, "symptom": symptom, "options": [], "fields": [], "is_end": True})
 
     if node_id == "symptom_search_results" and option_id in ("opt_self_care", "opt_self_care_dr"):
         symptom = session.get("demo_symptom", "your symptoms")
         advice  = _self_care_advice(symptom)
-        return jsonify({"node_id": "self_care_result", "type": "end", "message": advice, "options": [], "fields": [], "is_end": True})
+        return jsonify({"node_id": "self_care_result", "type": "end", "message": advice, "symptom": symptom, "options": [], "fields": [], "is_end": True})
     if node_id == "symptom_search_results" and option_id == "opt_book_from_symptom":
         next_id = "doctor_symptom_form"
 
