@@ -474,18 +474,22 @@ function renderResults(results, container, onSelect) {
         container.innerHTML = `<div class="triage-no-results">No patients found</div>`;
         return;
     }
-    container.innerHTML = results.map((p, i) => {
+    container.innerHTML = "";
+    results.forEach((p) => {
         const name = `${p.first_name} ${p.last_name}`;
         const color = avatarColor(name);
         const meta = [p.dob && `DOB: ${p.dob}`, p.nhs && p.nhs !== "—" && `NHS: ${p.nhs}`, p.postcode && p.postcode].filter(Boolean).join(" · ");
-        return `<div class="triage-result-item" onclick='onSelect(${JSON.stringify(p)})'>
+        const div = document.createElement("div");
+        div.className = "triage-result-item";
+        div.innerHTML = `
             <div class="triage-result-avatar" style="background:${color}">${initials(name)}</div>
             <div>
                 <div class="triage-result-name">${name}</div>
                 <div class="triage-result-meta">${meta}</div>
-            </div>
-        </div>`;
-    }).join("");
+            </div>`;
+        div.addEventListener("click", () => onSelect(p));
+        container.appendChild(div);
+    });
 }
 
 function selectPatient(p) {
