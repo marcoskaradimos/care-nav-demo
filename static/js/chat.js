@@ -211,7 +211,7 @@ function renderFlowNode(node, skipHistory = false) {
             fetch(`/nhs/link?q=${encodeURIComponent(_selfCareSymptom.trim())}`)
                 .then(r => r.json())
                 .then(d => {
-                    const conditionName = d.condition || _selfCareSymptom;
+                    const conditionName = (d.condition || _selfCareSymptom).replace(/\b\w/g, c => c.toUpperCase());
                     const nhsBtn = document.createElement("a");
                     nhsBtn.href = d.url;
                     nhsBtn.target = "_blank";
@@ -229,7 +229,7 @@ function renderFlowNode(node, skipHistory = false) {
                     nhsBtn.href = `https://www.nhs.uk/search/results?q=${q}`;
                     nhsBtn.target = "_blank";
                     nhsBtn.className = "nhs-guidance-btn";
-                    nhsBtn.innerHTML = `<span class="nhs-logo-badge">NHS</span><span class="nhs-guidance-label">${_selfCareSymptom}</span>`;
+                    nhsBtn.innerHTML = `<span class="nhs-logo-badge">NHS</span><span class="nhs-guidance-label">${_selfCareSymptom.replace(/\b\w/g, c => c.toUpperCase())}</span>`;
                     msgBubble.appendChild(nhsBtn);
                     scrollToBottom();
                 });
