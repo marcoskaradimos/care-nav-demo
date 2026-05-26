@@ -1560,7 +1560,7 @@ def ticket_update(ticket_id):
 
     db.commit()
     db.close()
-    params = {k: v for k, v in request.form.items() if k in ("list_status", "list_sort", "list_search", "list_team")}
+    params = {k: v for k, v in request.form.items() if k in ("list_status", "list_sort", "list_search", "list_team", "list_view", "list_user")}
     qs     = "&".join(f"{k[5:]}={v}" for k, v in params.items() if v)
     return redirect(url_for("ticket_detail", ticket_id=ticket_id) + (f"?{qs}" if qs else ""))
 
