@@ -986,7 +986,7 @@
 {% endblock %}
 
 {% block content %}
-{% set list_qs = 'status=' ~ filters.status ~ '&sort=' ~ filters.sort ~ ('&search=' ~ filters.search if filters.search else '') ~ ('&team=' ~ filters.team if filters.team else '') %}
+{% set list_qs = 'status=' ~ filters.status ~ '&sort=' ~ filters.sort ~ ('&search=' ~ filters.search if filters.search else '') ~ ('&team=' ~ filters.team if filters.team else '') ~ ('&view=' ~ filters.view if filters.view else '') ~ ('&user=' ~ filters.user if filters.user else '') %}
 <div class="inbox-wrap">
 
     <!-- ══ Far-left nav sidebar ══ -->
