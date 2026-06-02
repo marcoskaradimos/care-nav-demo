@@ -112,8 +112,9 @@ function _proceedToChat(name, dob, phone, nhs, postcode, practice, isProxy) {
     const badge = document.getElementById("phProxyBadge");
     if (badge) badge.style.display = isProxy ? "inline-block" : "none";
 
-    // Show header bar, hide registration screen, show chat
-    document.getElementById("patientHeaderBar").style.display = "grid";
+    // Show header bar only for staff triage — not for regular patients
+    const isStaffTriage = new URLSearchParams(window.location.search).get("staff_triage") === "1";
+    document.getElementById("patientHeaderBar").style.display = isStaffTriage ? "grid" : "none";
     document.getElementById("patientDetailsScreen").style.display = "none";
     document.getElementById("landingScreen").style.display = "none";
     chatMessages.style.display = "flex";
@@ -491,13 +492,33 @@ function showBackButton() {
 }
 
 function showEndButtons() {
+    // Ask if they need anything else instead of jumping straight to main menu
+    appendAssistantMessage("Is there anything else we can help you with today?");
+
     const wrapper = document.createElement("div");
     wrapper.className = "inline-options-wrapper";
-    const btn = document.createElement("button");
-    btn.className = "inline-option-btn";
-    btn.textContent = "← Return to Main Menu";
-    btn.addEventListener("click", () => { wrapper.remove(); goBack(); });
-    wrapper.appendChild(btn);
+
+    const yesBtn = document.createElement("button");
+    yesBtn.className = "inline-option-btn";
+    yesBtn.textContent = "Yes, I have another query";
+    yesBtn.addEventListener("click", () => {
+        wrapper.remove();
+        appendUserMessage("Yes, I have another query");
+        goBack();
+    });
+
+    const noBtn = document.createElement("button");
+    noBtn.className = "inline-option-btn inline-option-back";
+    noBtn.textContent = "No, I'm done";
+    noBtn.addEventListener("click", () => {
+        wrapper.remove();
+        appendUserMessage("No, I'm done");
+        appendAssistantMessage("Thank you for contacting us. A member of our team will review your request and aim to be in touch within **2 working days**. If your condition worsens or becomes urgent, please call **111** or visit your nearest **A&E**.\n\nTake care! 👋");
+        setInputEnabled(false);
+    });
+
+    wrapper.appendChild(yesBtn);
+    wrapper.appendChild(noBtn);
     chatMessages.appendChild(wrapper);
     scrollToBottom();
 }
