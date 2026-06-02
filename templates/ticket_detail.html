@@ -1408,11 +1408,13 @@
                             font-size:13px;font-weight:700;cursor:pointer;transition:all 0.15s;
                             {% if selected.status == 'In Progress' %}
                                 background:#dbeafe;color:#1d4ed8;
+                            {% elif selected.status == 'Closed' %}
+                                background:#f1f5f9;color:#6b7280;
                             {% else %}
                                 background:#d1fae5;color:#065f46;
                             {% endif %}
                         ">
-                        {% if selected.status == 'In Progress' %}⏳ In Progress{% else %}✅ Open{% endif %}
+                        {% if selected.status == 'In Progress' %}⏳ In Progress{% elif selected.status == 'Closed' %}🔒 Closed{% else %}✅ Open{% endif %}
                     </button>
                 </div>
 

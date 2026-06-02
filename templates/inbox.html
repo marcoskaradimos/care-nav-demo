@@ -146,9 +146,19 @@
 }
 
 .ticket-list-header {
-    padding: 10px 12px 8px;
+    padding: 0 0 8px;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+}
+
+.folder-location-bar {
+    padding: 10px 14px 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary);
+    letter-spacing: 0.01em;
 }
 
 .ticket-list-toprow {
@@ -440,6 +450,19 @@
     <!-- ══ Middle ticket list panel ══ -->
     <section class="ticket-list-panel">
         <div class="ticket-list-header">
+            {% if filters.view == 'mine' %}
+                <div class="folder-location-bar">📥 My Inbox</div>
+            {% elif filters.team == 'unassigned' %}
+                <div class="folder-location-bar">📂 Unassigned</div>
+            {% elif filters.team %}
+                <div class="folder-location-bar">📁 {{ filters.team }}</div>
+            {% elif filters.status == 'Closed' %}
+                <div class="folder-location-bar">🔒 Closed Tickets</div>
+            {% elif filters.user %}
+                <div class="folder-location-bar">👤 {{ filters.user | capitalize }}</div>
+            {% else %}
+                <div class="folder-location-bar">📋 All Active Tickets</div>
+            {% endif %}
             <form method="GET" action="{{ url_for('inbox') }}" id="filter-form">
                 {% if filters.view %}<input type="hidden" name="view" value="{{ filters.view }}">{% endif %}
                 <div class="ticket-list-toprow">
