@@ -504,7 +504,7 @@ function showEndButtons() {
     yesBtn.addEventListener("click", () => {
         wrapper.remove();
         appendUserMessage("Yes, I have another query");
-        goBack();
+        resetToMainMenu();
     });
 
     const noBtn = document.createElement("button");
