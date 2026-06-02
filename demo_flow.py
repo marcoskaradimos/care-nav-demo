@@ -155,9 +155,14 @@ NODES["repeat_med_info"] = opts(
     "repeat_med_info",
     "For repeat prescriptions, the quickest way is through the **NHS App**. You can order your repeat medication 24/7 without needing to contact the surgery.\n\nWould you like to use the NHS App or submit a request here?",
     [
-        {"id": "opt_nhs_app",      "label": "Use the NHS App", "url": "https://www.nhsapp.service.nhs.uk/"},
+        {"id": "opt_nhs_app",        "label": "Use the NHS App"},
         {"id": "opt_repeat_request", "label": "Submit a request here"},
     ]
+)
+
+NODES["nhs_app_redirect"] = end(
+    "nhs_app_redirect",
+    "Thank you for contacting us! You can order your repeat prescription directly through the NHS App using the link below:\n\n[📱 Open NHS App](https://www.nhsapp.service.nhs.uk/)\n\nIf you need any further help, don't hesitate to get in touch."
 )
 
 NODES["repeat_med_request_form"] = form(
@@ -270,6 +275,7 @@ OPTION_ROUTES = {
     ("symptom_after_results", "opt_book_from_symptom"): "doctor_symptom_form",
 
     # Repeat med
+    ("repeat_med_info",      "opt_nhs_app"):            "nhs_app_redirect",
     ("repeat_med_info",      "opt_repeat_request"):    "repeat_med_request_form",
 
     # Back to main from anywhere
