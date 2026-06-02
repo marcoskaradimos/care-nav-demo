@@ -1359,7 +1359,7 @@ def get_nav_counts():
         your_inbox   = db.execute(text(f"SELECT COUNT(*) FROM tickets WHERE {active} AND assigned_to = :u"), {"u": current_user}).fetchone()[0]
         all_tickets  = db.execute(text(f"SELECT COUNT(*) FROM tickets WHERE {active}")).fetchone()[0]
         closed_count = db.execute(text("SELECT COUNT(*) FROM tickets WHERE status='Closed'")).fetchone()[0]
-        unassigned   = db.execute(text(f"SELECT COUNT(*) FROM tickets WHERE {active} AND (assigned_to IS NULL OR assigned_to='')")).fetchone()[0]
+        unassigned   = db.execute(text(f"SELECT COUNT(*) FROM tickets WHERE {active} AND (inbox IS NULL OR inbox='' OR inbox='Unassigned')")).fetchone()[0]
         team_counts  = {}
         for t in TEAMS:
             c = db.execute(text(f"SELECT COUNT(*) FROM tickets WHERE {active} AND inbox = :t"), {"t": t}).fetchone()[0]
@@ -1411,7 +1411,7 @@ def _build_ticket_list(filters=None):
         current_user = session.get("staff_username", "")
         conditions.append(f"assigned_to = {p(current_user)}")
     elif team == "unassigned":
-        conditions.append("(assigned_to IS NULL OR assigned_to = '')")
+        conditions.append("(inbox IS NULL OR inbox = '' OR inbox = 'Unassigned')")
     elif team:
         conditions.append(f"inbox = {p(team)}")
 
@@ -1740,7 +1740,7 @@ def inbox_counts():
     db         = get_db()
     total_open = db.execute(text("SELECT COUNT(*) FROM tickets WHERE status='Open'")).fetchone()[0]
     total_all  = db.execute(text("SELECT COUNT(*) FROM tickets")).fetchone()[0]
-    unassigned = db.execute(text("SELECT COUNT(*) FROM tickets WHERE status='Open' AND (assigned_to IS NULL OR assigned_to='')")).fetchone()[0]
+    unassigned = db.execute(text("SELECT COUNT(*) FROM tickets WHERE status='Open' AND (inbox IS NULL OR inbox='' OR inbox='Unassigned')")).fetchone()[0]
     team_counts = {}
     for team in TEAMS:
         c = db.execute(text("SELECT COUNT(*) FROM tickets WHERE status='Open' AND assigned_to=:t"), {"t": team}).fetchone()[0]
