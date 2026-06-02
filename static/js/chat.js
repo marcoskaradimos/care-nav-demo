@@ -284,6 +284,7 @@ function renderFlowNode(node, skipHistory = false) {
         chatInput.placeholder = node.placeholder || "Type your response...";
         setInputEnabled(true);
         chatInput.focus();
+        showBackButton();
         scrollToBottom();
         return;
     }
