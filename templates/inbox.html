@@ -489,7 +489,22 @@
                             {% if t.case_number %}<span style="font-family:monospace;color:#4b5563;">{{ t.case_number }}</span>{% endif %}
                         </div>
                         <div class="ticket-item-meta">
-                            <span class="ticket-item-cat">{{ t.inbox or t.category or '—' }}</span>
+                            {% set inbox_label = t.inbox or 'Unassigned' %}
+                            {% set inbox_colors = {
+                                'Unassigned':       '#6b7280,#f3f4f6',
+                                'Clinical Triage':  '#7c3aed,#ede9fe',
+                                'Pharmacist':       '#0891b2,#e0f2fe',
+                                'Admin':            '#b45309,#fef3c7',
+                                'Nursing':          '#be185d,#fce7f3',
+                                'GP':               '#065f46,#d1fae5',
+                            } %}
+                            {% set colors = inbox_colors.get(inbox_label, '#374151,#f1f5f9') %}
+                            <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:{{ colors.split(',')[1] }};color:{{ colors.split(',')[0] }};white-space:nowrap;">
+                                {{ inbox_label }}
+                            </span>
+                            {% if t.assigned_to %}
+                            <span style="font-size:10px;color:#9ca3af;">→ {{ t.assigned_to | capitalize }}</span>
+                            {% endif %}
                             <span class="badge badge-{{ (t.priority or 'medium') | lower }}">{{ t.priority or 'Medium' }}</span>
                         </div>
                     </div>
